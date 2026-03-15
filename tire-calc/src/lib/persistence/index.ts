@@ -1,11 +1,11 @@
 export {
-  saveSession,
-  getSession,
-  getAllSessions,
-  deleteSession,
-  getSessionsByTrack,
+  saveEvent,
+  getEvent,
+  getAllEvents,
+  deleteEvent,
+  getEventsByTrack,
   loadSettings,
   saveSettings,
-  replaceAllSessions,
-  getSessionCount,
+  replaceAllEvents,
+  getEventCount,
 } from "./db";

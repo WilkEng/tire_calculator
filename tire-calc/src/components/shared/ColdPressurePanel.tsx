@@ -6,7 +6,7 @@ import type {
   Corner,
   PartialCornerValues,
   AppSettings,
-  Session,
+  Event,
 } from "@/lib/domain/models";
 import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
 import { NumericInput } from "@/components/ui/NumericInput";
@@ -29,8 +29,8 @@ interface ColdPressurePanelProps {
   collapsible?: boolean;
   /** Default collapsed state */
   defaultCollapsed?: boolean;
-  /** Session for inline recalculation */
-  session?: Session | null;
+  /** Event for inline recalculation */
+  event?: Event | null;
   /** App settings */
   settings?: AppSettings;
   /** Current weather conditions from API */
@@ -51,7 +51,7 @@ export function ColdPressurePanel({
   minColdPressureBar = 1.3,
   collapsible = false,
   defaultCollapsed = true,
-  session,
+  event,
   settings,
   currentConditions,
   getForecastAtTime,
@@ -62,7 +62,7 @@ export function ColdPressurePanel({
   const [calcTireTemps, setCalcTireTemps] = useState<PartialCornerValues>({});
   const [calcPredTime, setCalcPredTime] = useState("");
 
-  const latestStint = session?.stints?.[session.stints.length - 1];
+  const latestStint = event?.stints?.[event.stints.length - 1];
 
   // Handle prediction fill
   const handleUsePrediction = useCallback(
@@ -87,7 +87,7 @@ export function ColdPressurePanel({
 
   // Compute inline calculator recommendation
   const calcRecommendation: RecommendationOutput | null = useMemo(() => {
-    if (!session || !settings || !latestStint) return null;
+    if (!event || !settings || !latestStint) return null;
     if (!latestStint.pitstops || latestStint.pitstops.length === 0) return null;
     const latestPitstop = latestStint.pitstops[latestStint.pitstops.length - 1];
 
@@ -100,13 +100,13 @@ export function ColdPressurePanel({
     const tireTemps = Object.keys(calcTireTemps).length > 0 ? calcTireTemps : latestStint.baseline?.startTireTemps;
 
     const input: RecommendationInput = {
-      currentSession: session,
+      currentEvent: event,
       currentStintId: latestStint.id,
       currentPitstopId: latestPitstop.id,
       nextConditions: { ambientTemp: amb, asphaltTemp: asp, startTireTemps: tireTemps },
       targetMode: latestStint.baseline?.targetMode ?? "single",
       targets: latestStint.baseline?.targets ?? {},
-      priorSessions: [],
+      priorEvents: [],
       settings,
       compound: latestStint.baseline?.compound,
     };
@@ -116,7 +116,7 @@ export function ColdPressurePanel({
     } catch {
       return null;
     }
-  }, [session, settings, latestStint, calcAmbient, calcAsphalt, calcTireTemps, currentConditions]);
+  }, [event, settings, latestStint, calcAmbient, calcAsphalt, calcTireTemps, currentConditions]);
 
   // The recommendation to display in the header (calc override or default)
   const displayRec = calcRecommendation ?? recommendation;
@@ -234,7 +234,7 @@ export function ColdPressurePanel({
       </div>
 
       {/* ── Calculator section ── */}
-      {session && settings && latestStint && latestStint.pitstops?.length > 0 && (
+      {event && settings && latestStint && latestStint.pitstops?.length > 0 && (
         <>
           {collapsible ? (
             <button

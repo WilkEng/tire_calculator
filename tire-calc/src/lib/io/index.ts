@@ -1,21 +1,21 @@
 export {
-  exportSession,
+  exportEvent,
   exportFullBackup,
   toJSON,
   downloadJSON,
-  importSession,
+  importEvent,
   importFullBackup,
   importStintBaseline,
-  exportSessionCSV,
+  exportEventCSV,
   downloadCSV,
   readFileAsText,
 } from "./importExport";
 
 export type {
-  SessionExport,
+  EventExport,
   FullBackupExport,
   ImportResult,
-  SessionImportResult,
+  EventImportResult,
   FullBackupImportResult,
   StintBaselineImportResult,
 } from "./importExport";

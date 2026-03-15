@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Tire Calc – Race Pressure Planner",
   description:
-    "Local-first race engineering app for tire pressure calculation and session management.",
+    "Local-first race engineering app for tire pressure calculation and event management.",
 };
 
 export default function RootLayout({

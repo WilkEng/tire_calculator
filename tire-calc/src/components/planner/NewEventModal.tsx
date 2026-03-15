@@ -6,12 +6,12 @@ import { Select } from "@/components/ui/Select";
 import { ComboBox } from "@/components/ui/ComboBox";
 import type { ComboBoxOption } from "@/components/ui/ComboBox";
 import { searchLocation, getUserLocation } from "@/lib/weather/openMeteo";
-import { getAllSessions } from "@/lib/persistence/db";
-import type { Session } from "@/lib/domain/models";
+import { getAllEvents } from "@/lib/persistence/db";
+import type { Event } from "@/lib/domain/models";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-export interface NewSessionData {
+export interface NewEventData {
   name: string;
   trackName: string;
   date: string;
@@ -23,10 +23,10 @@ export interface NewSessionData {
   notes: string;
 }
 
-interface NewSessionModalProps {
+interface NewEventModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: NewSessionData) => void;
+  onSubmit: (data: NewEventData) => void;
 }
 
 // ─── Common compound presets ───────────────────────────────────────
@@ -42,8 +42,8 @@ const COMPOUND_OPTIONS = [
 
 // ─── Component ─────────────────────────────────────────────────────
 
-export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProps) {
-  const [name, setName] = useState("New Session");
+export function NewEventModal({ open, onClose, onSubmit }: NewEventModalProps) {
+  const [name, setName] = useState("New Event");
   const [trackName, setTrackName] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [vehicle, setVehicle] = useState("");
@@ -61,24 +61,24 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // History from saved sessions
-  const [historySessions, setHistorySessions] = useState<Session[]>([]);
+  // History from saved events
+  const [historyEvents, setHistoryEvents] = useState<Event[]>([]);
 
-  // Load saved sessions when modal opens
+  // Load saved events when modal opens
   useEffect(() => {
     if (!open) return;
-    getAllSessions()
-      .then(setHistorySessions)
+    getAllEvents()
+      .then(setHistoryEvents)
       .catch(console.error);
   }, [open]);
 
   // Build unique location options from history (with coordinates)
   const locationHistoryOptions: ComboBoxOption[] = useMemo(() => {
     const map = new Map<string, { lat?: number; lng?: number }>();
-    for (const s of historySessions) {
+    for (const s of historyEvents) {
       const loc = s.location?.trim();
       if (loc) {
-        // Keep the first occurrence's coordinates (most recent session sorted first)
+        // Keep the first occurrence's coordinates (most recent event sorted first)
         if (!map.has(loc)) {
           map.set(loc, { lat: s.latitude, lng: s.longitude });
         }
@@ -92,17 +92,17 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
           : undefined,
       meta: { latitude: coords.lat, longitude: coords.lng },
     }));
-  }, [historySessions]);
+  }, [historyEvents]);
 
   // Build unique vehicle options from history
   const vehicleHistoryOptions: ComboBoxOption[] = useMemo(() => {
     const set = new Set<string>();
-    for (const s of historySessions) {
+    for (const s of historyEvents) {
       const v = s.vehicle?.trim();
       if (v) set.add(v);
     }
     return Array.from(set).map((v) => ({ label: v }));
-  }, [historySessions]);
+  }, [historyEvents]);
 
   // Merge history locations with API search results for the ComboBox
   const locationOptions: ComboBoxOption[] = useMemo(() => {
@@ -124,7 +124,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
   // Reset form when opening
   useEffect(() => {
     if (open) {
-      setName("New Session");
+      setName("New Event");
       setTrackName("");
       setDate(new Date().toISOString().slice(0, 10));
       setVehicle("");
@@ -234,11 +234,11 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
         className="relative z-10 bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
-        aria-label="New Session"
+        aria-label="New Event"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-100">New Session</h2>
+          <h2 className="text-lg font-semibold text-gray-100">New Event</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-200 transition-colors text-xl leading-none"
@@ -250,10 +250,10 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
 
         {/* Form */}
         <div className="p-4 space-y-4">
-          {/* Session Name */}
+          {/* Event Name */}
           <label className="flex flex-col gap-1">
             <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-              Session Name *
+              Event Name *
             </span>
             <input
               type="text"
@@ -358,7 +358,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={!name.trim()}>
-            Create Session
+            Create Event
           </Button>
         </div>
       </div>

@@ -1,27 +1,27 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { Session } from "@/lib/domain/models";
+import type { Event } from "@/lib/domain/models";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-export interface SessionFilterCriteria {
+export interface EventFilterCriteria {
   query: string;
   /** Any additional active filter fields */
 }
 
 /**
- * Filters a list of sessions by matching the query against
+ * Filters a list of events by matching the query against
  * date, vehicle, location, track, compound, notes, and stint names.
  */
-export function filterSessions(
-  sessions: Session[],
-  criteria: SessionFilterCriteria
-): Session[] {
+export function filterEvents(
+  events: Event[],
+  criteria: EventFilterCriteria
+): Event[] {
   const q = criteria.query.trim().toLowerCase();
-  if (!q) return sessions;
+  if (!q) return events;
 
-  return sessions.filter((s) => {
+  return events.filter((s) => {
     // Date (both ISO and formatted)
     if (s.date?.toLowerCase().includes(q)) return true;
     if (s.date) {
@@ -64,12 +64,12 @@ export function filterSessions(
 
 // ─── Hook ──────────────────────────────────────────────────────────
 
-export function useSessionFilter(sessions: Session[]) {
+export function useEventFilter(events: Event[]) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(
-    () => filterSessions(sessions, { query }),
-    [sessions, query]
+    () => filterEvents(events, { query }),
+    [events, query]
   );
 
   const clearFilter = useCallback(() => setQuery(""), []);

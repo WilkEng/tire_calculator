@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useSessionContext } from "@/context/SessionContext";
+import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ColdPressurePanel } from "@/components/shared/ColdPressurePanel";
@@ -13,57 +13,57 @@ import { computeRecommendation, resolveMinColdPressure, type RecommendationInput
 import type { RecommendationOutput } from "@/lib/domain/models";
 
 export default function DashboardPage() {
-  const { session, settings } = useSessionContext();
+  const { event, settings } = useEventContext();
 
   // Weather Forecast
   const weatherForecast = useWeatherForecast(
-    session?.latitude,
-    session?.longitude,
-    session?.userWeatherOverrides
+    event?.latitude,
+    event?.longitude,
+    event?.userWeatherOverrides
   );
 
   // Determine if user has overrides
   const hasUserAmbient = useMemo(
     () =>
-      (session?.userWeatherOverrides ?? []).some(
+      (event?.userWeatherOverrides ?? []).some(
         (o) => o.ambientOverride != null
       ),
-    [session?.userWeatherOverrides]
+    [event?.userWeatherOverrides]
   );
 
   const hasUserAsphalt = useMemo(
     () =>
-      (session?.userWeatherOverrides ?? []).some(
+      (event?.userWeatherOverrides ?? []).some(
         (o) => o.asphaltOverride != null
       ),
-    [session?.userWeatherOverrides]
+    [event?.userWeatherOverrides]
   );
 
   // Latest user-measured overrides
   const latestAmbientMeasured = useMemo(() => {
-    const overrides = (session?.userWeatherOverrides ?? [])
+    const overrides = (event?.userWeatherOverrides ?? [])
       .filter((o) => o.ambientOverride != null)
       .sort(
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
     return overrides[0]?.ambientOverride;
-  }, [session?.userWeatherOverrides]);
+  }, [event?.userWeatherOverrides]);
 
   const latestAsphaltMeasured = useMemo(() => {
-    const overrides = (session?.userWeatherOverrides ?? [])
+    const overrides = (event?.userWeatherOverrides ?? [])
       .filter((o) => o.asphaltOverride != null)
       .sort(
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
     return overrides[0]?.asphaltOverride;
-  }, [session?.userWeatherOverrides]);
+  }, [event?.userWeatherOverrides]);
 
   // Recommendation
   const recommendation: RecommendationOutput | null = useMemo(() => {
-    if (!session || !session.stints || session.stints.length < 1) return null;
-    const latestStint = session.stints[session.stints.length - 1];
+    if (!event || !event.stints || event.stints.length < 1) return null;
+    const latestStint = event.stints[event.stints.length - 1];
     if (!latestStint.pitstops || latestStint.pitstops.length === 0) return null;
     const latestPitstop = latestStint.pitstops[latestStint.pitstops.length - 1];
 
@@ -77,7 +77,7 @@ export default function DashboardPage() {
       30;
 
     const input: RecommendationInput = {
-      currentSession: session,
+      currentEvent: event,
       currentStintId: latestStint.id,
       currentPitstopId: latestPitstop.id,
       nextConditions: {
@@ -87,7 +87,7 @@ export default function DashboardPage() {
       },
       targetMode: latestStint.baseline?.targetMode ?? "single",
       targets: latestStint.baseline?.targets ?? {},
-      priorSessions: [],
+      priorEvents: [],
       settings,
       compound: latestStint.baseline?.compound,
     };
@@ -97,12 +97,12 @@ export default function DashboardPage() {
     } catch {
       return null;
     }
-  }, [session, settings, weatherForecast.currentConditions]);
+  }, [event, settings, weatherForecast.currentConditions]);
 
   // Conditions label
   const conditionsLabel = useMemo(() => {
-    if (!session) return undefined;
-    const latestStint = session.stints?.[session.stints.length - 1];
+    if (!event) return undefined;
+    const latestStint = event.stints?.[event.stints.length - 1];
     if (!latestStint) return undefined;
 
     const parts: string[] = [`Based on ${latestStint.name}`];
@@ -117,22 +117,22 @@ export default function DashboardPage() {
       }
     }
     return parts.join(" ");
-  }, [session, weatherForecast.currentConditions, settings.unitsTemperature, hasUserAmbient, hasUserAsphalt]);
+  }, [event, weatherForecast.currentConditions, settings.unitsTemperature, hasUserAmbient, hasUserAsphalt]);
 
-  const latestStint = session?.stints?.[session.stints.length - 1];
+  const latestStint = event?.stints?.[event.stints.length - 1];
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-100">Dashboard</h1>
 
-      {!session ? (
+      {!event ? (
         <div className="flex flex-col items-center justify-center py-16 gap-6">
           <p className="text-gray-400 text-center max-w-md">
-            No active session. Create one from the Planner or load from History.
+            No active event. Create one from the Planner or load from History.
           </p>
           <div className="flex gap-3">
             <Link href="/planner">
-              <Button>+ New Session</Button>
+              <Button>+ New Event</Button>
             </Link>
             <Link href="/history">
               <Button variant="secondary">Load from History</Button>
@@ -147,10 +147,10 @@ export default function DashboardPage() {
             pressureUnit={settings.unitsPressure}
             temperatureUnit={settings.unitsTemperature}
             conditionsLabel={conditionsLabel}
-            minColdPressureBar={resolveMinColdPressure(session.stints?.[session.stints.length - 1]?.baseline?.compound, settings)}
+            minColdPressureBar={resolveMinColdPressure(event.stints?.[event.stints.length - 1]?.baseline?.compound, settings)}
             collapsible={true}
             defaultCollapsed={true}
-            session={session}
+            event={event}
             settings={settings}
             currentConditions={weatherForecast.currentConditions}
             getForecastAtTime={weatherForecast.getForecastAtTime}
@@ -199,7 +199,7 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* Session Info Grid */}
+          {/* Event Info Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <Card title="Current Conditions">
               {weatherForecast.currentConditions ? (
@@ -281,48 +281,48 @@ export default function DashboardPage() {
               )}
             </Card>
 
-            <Card title="Session Status">
+            <Card title="Event Status">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Session</span>
+                  <span className="text-gray-400">Event</span>
                   <span className="text-gray-200 font-medium">
-                    {session.name}
+                    {event.name}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Track</span>
                   <span className="text-gray-200 font-medium">
-                    {session.trackName || "\u2014"}
+                    {event.trackName || "\u2014"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Date</span>
                   <span className="text-gray-200 font-medium">
-                    {session.date
-                      ? new Date(session.date).toLocaleDateString()
+                    {event.date
+                      ? new Date(event.date).toLocaleDateString()
                       : "\u2014"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Stints</span>
                   <span className="text-gray-200 font-medium">
-                    {session.stints?.length ?? 0}
+                    {event.stints?.length ?? 0}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Total Pitstops</span>
                   <span className="text-gray-200 font-medium">
-                    {session.stints?.reduce(
+                    {event.stints?.reduce(
                       (acc, s) => acc + s.pitstops.length,
                       0
                     ) || 0}
                   </span>
                 </div>
-                {session.compoundPreset && (
+                {event.compoundPreset && (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Compound</span>
                     <span className="text-gray-200 font-medium">
-                      {session.compoundPreset}
+                      {event.compoundPreset}
                     </span>
                   </div>
                 )}
@@ -338,27 +338,27 @@ export default function DashboardPage() {
 
             <Card title="Location">
               <div className="space-y-2 text-sm">
-                {session.location ? (
+                {event.location ? (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Location</span>
                     <span className="text-gray-200 font-medium">
-                      {session.location}
+                      {event.location}
                     </span>
                   </div>
                 ) : (
                   <p className="text-gray-500">No location set.</p>
                 )}
-                {session.latitude != null && session.longitude != null && (
+                {event.latitude != null && event.longitude != null && (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Coordinates</span>
                     <span className="text-gray-200 font-medium tabular-nums">
-                      {session.latitude.toFixed(4)},{" "}
-                      {session.longitude.toFixed(4)}
+                      {event.latitude.toFixed(4)},{" "}
+                      {event.longitude.toFixed(4)}
                     </span>
                   </div>
                 )}
               </div>
-              {!session.latitude && (
+              {!event.latitude && (
                 <p className="text-xs text-gray-500 mt-2">
                   Set a location in the Planner to enable weather forecasts.
                 </p>

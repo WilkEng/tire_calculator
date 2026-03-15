@@ -1,6 +1,6 @@
 import {
   type AppSettings,
-  type Session,
+  type Event,
   type Stint,
   type StintBaseline,
   type PitstopEntry,
@@ -16,10 +16,10 @@ import {
 } from "./models";
 import { generateId, nowISO } from "../utils/helpers";
 
-// --- Factory: Session ----------------------------------------------
-export function createSession(
-  overrides: Partial<Session> & Pick<Session, "name" | "trackName">
-): Session {
+// --- Factory: Event ------------------------------------------------
+export function createEvent(
+  overrides: Partial<Event> & Pick<Event, "name" | "trackName">
+): Event {
   const now = nowISO();
   return {
     id: generateId(),
@@ -41,6 +41,9 @@ export function createSession(
     ...overrides,
   };
 }
+
+/** @deprecated Use createEvent instead */
+export const createSession = createEvent;
 
 // --- Factory: Stint ------------------------------------------------
 export function createStint(

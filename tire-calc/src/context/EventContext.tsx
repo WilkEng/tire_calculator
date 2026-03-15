@@ -9,7 +9,7 @@ import React, {
   type ReactNode,
 } from "react";
 import type {
-  Session,
+  Event,
   Stint,
   AppSettings,
   PitstopEntry,
@@ -19,26 +19,26 @@ import type {
 } from "@/lib/domain/models";
 import { DEFAULT_APP_SETTINGS } from "@/lib/domain/models";
 import {
-  createSession,
+  createEvent,
   createStint,
   createStintBaseline,
   createPitstopEntry,
   createUserWeatherOverride,
 } from "@/lib/domain/factories";
-import { saveSession, loadSettings, saveSettings } from "@/lib/persistence/db";
+import { saveEvent, loadSettings, saveSettings } from "@/lib/persistence/db";
 import { nowISO } from "@/lib/utils/helpers";
 import { expandTargets } from "@/lib/engine/pressureEngine";
 
-interface SessionContextValue {
-  /** Current active session */
-  session: Session | null;
+interface EventContextValue {
+  /** Current active event */
+  event: Event | null;
   /** App settings */
   settings: AppSettings;
 
-  /** Set the entire session (e.g. after loading from DB) */
-  setSession: (session: Session) => void;
-  /** Create a new session with full metadata */
-  createNewSession: (params: {
+  /** Set the entire event (e.g. after loading from DB) */
+  setEvent: (event: Event) => void;
+  /** Create a new event with full metadata */
+  createNewEvent: (params: {
     name: string;
     trackName: string;
     date?: string;
@@ -48,9 +48,9 @@ interface SessionContextValue {
     longitude?: number;
     compoundPreset?: string;
     notes?: string;
-  }) => Session;
-  /** Close the active session */
-  closeSession: () => void;
+  }) => Event;
+  /** Close the active event */
+  closeEvent: () => void;
 
   /** Create a new stint */
   addStint: (name: string, baselineOverrides?: Partial<StintBaseline>) => void;
@@ -62,7 +62,7 @@ interface SessionContextValue {
   importBaselineToStint: (
     stintId: string,
     baseline: StintBaseline,
-    sourceSessionName?: string,
+    sourceEventName?: string,
     sourceStintName?: string,
     pitstops?: PitstopEntry[]
   ) => void;
@@ -100,8 +100,8 @@ interface SessionContextValue {
   /** Remove a stint by id (cannot remove the first stint) */
   removeStint: (stintId: string) => void;
 
-  /** Update session-level fields */
-  updateSession: (updates: Partial<Session>) => void;
+  /** Update event-level fields */
+  updateEvent: (updates: Partial<Event>) => void;
 
   /** Add a user weather override (records user-measured ambient/asphalt with timestamp) */
   addUserWeatherOverride: (override: Omit<UserWeatherOverride, "id">) => void;
@@ -113,16 +113,16 @@ interface SessionContextValue {
   save: () => Promise<void>;
 }
 
-const SessionContext = createContext<SessionContextValue | null>(null);
+const EventContext = createContext<EventContextValue | null>(null);
 
-export function useSessionContext(): SessionContextValue {
-  const ctx = useContext(SessionContext);
-  if (!ctx) throw new Error("useSessionContext must be used within SessionProvider");
+export function useEventContext(): EventContextValue {
+  const ctx = useContext(EventContext);
+  if (!ctx) throw new Error("useEventContext must be used within EventProvider");
   return ctx;
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSessionState] = useState<Session | null>(null);
+export function EventProvider({ children }: { children: ReactNode }) {
+  const [event, setEventState] = useState<Event | null>(null);
   const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   // Load settings on mount
@@ -130,20 +130,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     loadSettings().then(setSettingsState).catch(console.error);
   }, []);
 
-  // Autosave whenever session changes
+  // Autosave whenever event changes
   useEffect(() => {
-    if (!session) return;
+    if (!event) return;
     const timer = setTimeout(() => {
-      saveSession(session).catch(console.error);
+      saveEvent(event).catch(console.error);
     }, 500); // debounce 500ms
     return () => clearTimeout(timer);
-  }, [session]);
+  }, [event]);
 
-  const setSession = useCallback((s: Session) => {
-    setSessionState(s);
+  const setEvent = useCallback((e: Event) => {
+    setEventState(e);
   }, []);
 
-  const createNewSession = useCallback(
+  const createNewEvent = useCallback(
     (params: {
       name: string;
       trackName: string;
@@ -154,8 +154,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       longitude?: number;
       compoundPreset?: string;
       notes?: string;
-    }): Session => {
-      const s = createSession({
+    }): Event => {
+      const e = createEvent({
         name: params.name,
         trackName: params.trackName,
         date: params.date ?? new Date().toISOString().slice(0, 10),
@@ -168,20 +168,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
       // Add first Stint automatically
       const firstStint = createStint("Stint 1", settings.defaultTargetMode, {});
-      s.stints = [firstStint];
+      e.stints = [firstStint];
       
-      setSessionState(s);
-      return s;
+      setEventState(e);
+      return e;
     },
     [settings.defaultTargetMode]
   );
 
-  const closeSession = useCallback(() => {
-    setSessionState(null);
+  const closeEvent = useCallback(() => {
+    setEventState(null);
   }, []);
 
   const addStint = useCallback((name: string, baselineOverrides?: Partial<StintBaseline>) => {
-    setSessionState((prev) => {
+    setEventState((prev) => {
       if (!prev) return prev;
       const lastStint = prev.stints[prev.stints.length - 1];
       const prevCompound = lastStint?.baseline.compound ?? settings.defaultCompound;
@@ -205,7 +205,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const updateStintBaseline = useCallback(
     (stintId: string, updates: Partial<StintBaseline>) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map((s) =>
           s.id === stintId ? { ...s, baseline: { ...s.baseline, ...updates } } : s
@@ -218,7 +218,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const updateStint = useCallback(
     (stintId: string, updates: Partial<Stint>) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map((s) =>
           s.id === stintId ? { ...s, ...updates } : s
@@ -230,7 +230,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const addPitstop = useCallback((stintId: string) => {
-    setSessionState((prev) => {
+    setEventState((prev) => {
       if (!prev) return prev;
       const stints = prev.stints.map(stint => {
         if (stint.id !== stintId) return stint;
@@ -248,7 +248,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const updatePitstop = useCallback(
     (stintId: string, pitstopId: string, updates: Partial<PitstopEntry>) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map(stint => {
           if (stint.id !== stintId) return stint;
@@ -269,7 +269,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    */
   const updateHotPressure = useCallback(
     (stintId: string, pitstopId: string, corner: Corner, value: number | undefined) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map(stint => {
           if (stint.id !== stintId) return stint;
@@ -310,7 +310,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    */
   const updateBledPressure = useCallback(
     (stintId: string, pitstopId: string, corner: Corner, value: number | undefined) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map(stint => {
           if (stint.id !== stintId) return stint;
@@ -338,7 +338,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    */
   const resetBledCorner = useCallback(
     (stintId: string, pitstopId: string, corner: Corner) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const stints = prev.stints.map(stint => {
           if (stint.id !== stintId) return stint;
@@ -366,7 +366,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const removePitstop = useCallback((stintId: string, pitstopId: string) => {
-    setSessionState((prev) => {
+    setEventState((prev) => {
       if (!prev) return prev;
       const stints = prev.stints.map(stint => {
         if (stint.id !== stintId) return stint;
@@ -381,7 +381,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   /** Remove a stint by id. Cannot remove the first stint. */
   const removeStint = useCallback((stintId: string) => {
-    setSessionState((prev) => {
+    setEventState((prev) => {
       if (!prev) return prev;
       // Don't allow removing the first stint
       if (prev.stints.length <= 1) return prev;
@@ -396,14 +396,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     (
       stintId: string,
       baseline: StintBaseline,
-      sourceSessionName?: string,
+      sourceEventName?: string,
       sourceStintName?: string,
       pitstops?: PitstopEntry[]
     ) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         // Strip weather conditions from imported baseline so they don't
-        // override the current session's ambient/asphalt predictions.
+        // override the current event's ambient/asphalt predictions.
         const { ambientMeasured, asphaltMeasured, ...importedBaseline } = baseline;
         const stints = prev.stints.map((s) =>
           s.id === stintId
@@ -412,7 +412,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 baseline: { ...importedBaseline },
                 pitstops: pitstops ?? s.pitstops,
                 importedBaseline: {
-                  sourceSessionName,
+                  sourceEventName: sourceEventName,
                   sourceStintName,
                   importedAt: nowISO(),
                 },
@@ -425,10 +425,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  /** Record a user weather override on the session. */
+  /** Record a user weather override on the event. */
   const addUserWeatherOverride = useCallback(
     (override: Omit<UserWeatherOverride, "id">) => {
-      setSessionState((prev) => {
+      setEventState((prev) => {
         if (!prev) return prev;
         const entry = createUserWeatherOverride(override);
         return {
@@ -441,8 +441,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const updateSession = useCallback((updates: Partial<Session>) => {
-    setSessionState((prev) => {
+  const updateEvent = useCallback((updates: Partial<Event>) => {
+    setEventState((prev) => {
       if (!prev) return prev;
       return { ...prev, ...updates, updatedAt: nowISO() };
     });
@@ -458,17 +458,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const save = useCallback(async () => {
-    if (session) await saveSession(session);
-  }, [session]);
+    if (event) await saveEvent(event);
+  }, [event]);
 
   return (
-    <SessionContext.Provider
+    <EventContext.Provider
       value={{
-        session,
+        event,
         settings,
-        setSession,
-        createNewSession,
-        closeSession,
+        setEvent,
+        createNewEvent,
+        closeEvent,
         addStint,
         updateStintBaseline,
         updateStint,
@@ -480,14 +480,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         resetBledCorner,
         removePitstop,
         removeStint,
-        updateSession,
+        updateEvent,
         addUserWeatherOverride,
         updateSettings,
         save,
       }}
     >
       {children}
-    </SessionContext.Provider>
+    </EventContext.Provider>
   );
 }
-

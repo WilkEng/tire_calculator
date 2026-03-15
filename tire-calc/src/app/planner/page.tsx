@@ -1,15 +1,15 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useCallback, useState } from "react";
-import { useSessionContext } from "@/context/SessionContext";
+import { useEventContext } from "@/context/EventContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PitstopCard } from "@/components/planner/PitstopCard";
 import { ColdPressurePanel } from "@/components/shared/ColdPressurePanel";
-import { SessionHeader } from "@/components/planner/SessionHeader";
-import { SessionStartCard } from "@/components/planner/SessionStartCard";
-import { NewSessionModal } from "@/components/planner/NewSessionModal";
-import type { NewSessionData } from "@/components/planner/NewSessionModal";
+import { EventHeader } from "@/components/planner/EventHeader";
+import { EventStartCard } from "@/components/planner/EventStartCard";
+import { NewEventModal } from "@/components/planner/NewEventModal";
+import type { NewEventData } from "@/components/planner/NewEventModal";
 import { StintStartFlow } from "@/components/planner/StintStartFlow";
 import { BaselinePickerModal } from "@/components/planner/BaselinePickerModal";
 import {
@@ -32,10 +32,10 @@ const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
 export default function PlannerPage() {
   const {
-    session,
+    event,
     settings,
-    createNewSession,
-    closeSession,
+    createNewEvent,
+    closeEvent,
     addStint,
     addPitstop,
     updatePitstop,
@@ -44,21 +44,21 @@ export default function PlannerPage() {
     resetBledCorner,
     removePitstop,
     removeStint,
-    updateSession,
+    updateEvent,
     updateStintBaseline,
     importBaselineToStint,
     addUserWeatherOverride,
-  } = useSessionContext();
+  } = useEventContext();
 
-  // --- Weather forecast for the session's location ---
+  // --- Weather forecast for the event's location ---
   const { currentConditions, getForecastAtTime } = useWeatherForecast(
-    session?.latitude,
-    session?.longitude,
-    session?.userWeatherOverrides
+    event?.latitude,
+    event?.longitude,
+    event?.userWeatherOverrides
   );
 
   // --- Modal state ---
-  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
   const [baselinePickerStintId, setBaselinePickerStintId] = useState<
     string | null
   >(null);
@@ -66,10 +66,10 @@ export default function PlannerPage() {
     new Set()
   );
 
-  // --- Create new session from modal ---
-  const handleCreateSession = useCallback(
-    (data: NewSessionData) => {
-      createNewSession({
+  // --- Create new event from modal ---
+  const handleCreateEvent = useCallback(
+    (data: NewEventData) => {
+      createNewEvent({
         name: data.name,
         trackName: data.trackName,
         date: data.date,
@@ -80,9 +80,9 @@ export default function PlannerPage() {
         compoundPreset: data.compoundPreset,
         notes: data.notes,
       });
-      setShowNewSessionModal(false);
+      setShowNewEventModal(false);
     },
-    [createNewSession]
+    [createNewEvent]
   );
 
   // --- Export baseline + pitstops as JSON ---
@@ -128,12 +128,12 @@ export default function PlannerPage() {
 
   // --- Pick baseline + pitstops from history ---
   const handlePickBaseline = useCallback(
-    (baseline: StintBaseline, sessionName: string, stintName: string, pitstops?: import("@/lib/domain/models").PitstopEntry[]) => {
+    (baseline: StintBaseline, eventName: string, stintName: string, pitstops?: import("@/lib/domain/models").PitstopEntry[]) => {
       if (!baselinePickerStintId) return;
       importBaselineToStint(
         baselinePickerStintId,
         baseline,
-        sessionName,
+        eventName,
         stintName,
         pitstops
       );
@@ -163,13 +163,13 @@ export default function PlannerPage() {
   // --- Compute recommendation for a stint using its OWN pitstop data ---
   const computeStintRecommendation = useCallback(
     (stintId: string): RecommendationOutput | null => {
-      if (!session) return null;
-      const stint = session.stints?.find((s) => s.id === stintId);
+      if (!event) return null;
+      const stint = event.stints?.find((s) => s.id === stintId);
       if (!stint || !stint.pitstops || stint.pitstops.length === 0) return null;
       const latestPitstop = stint.pitstops[stint.pitstops.length - 1];
 
       const input: RecommendationInput = {
-        currentSession: session,
+        currentEvent: event,
         currentStintId: stint.id,
         currentPitstopId: latestPitstop.id,
         nextConditions: {
@@ -179,7 +179,7 @@ export default function PlannerPage() {
         },
         targetMode: stint.baseline?.targetMode ?? "single",
         targets: stint.baseline?.targets ?? {},
-        priorSessions: [],
+        priorEvents: [],
         settings,
         compound: stint.baseline?.compound,
       };
@@ -190,7 +190,7 @@ export default function PlannerPage() {
         return null;
       }
     },
-    [session, settings]
+    [event, settings]
   );
 
   /**
@@ -203,14 +203,14 @@ export default function PlannerPage() {
    */
   const computeRecForNextStint = useCallback(
     (prevStint: Stint, currentStint: Stint): RecommendationOutput | null => {
-      if (!session) return null;
+      if (!event) return null;
       if (!prevStint.pitstops || prevStint.pitstops.length === 0) return null;
       const latestPitstop = prevStint.pitstops[prevStint.pitstops.length - 1];
 
       // Use the current (new) stint's baseline for conditions & targets
       const curBaseline = currentStint.baseline;
       const input: RecommendationInput = {
-        currentSession: session,
+        currentEvent: event,
         currentStintId: prevStint.id,
         currentPitstopId: latestPitstop.id,
         nextConditions: {
@@ -220,7 +220,7 @@ export default function PlannerPage() {
         },
         targetMode: curBaseline?.targetMode ?? prevStint.baseline?.targetMode ?? "single",
         targets: curBaseline?.targets ?? prevStint.baseline?.targets ?? {},
-        priorSessions: [],
+        priorEvents: [],
         settings,
         compound: curBaseline?.compound ?? prevStint.baseline?.compound,
       };
@@ -231,18 +231,18 @@ export default function PlannerPage() {
         return null;
       }
     },
-    [session, settings]
+    [event, settings]
   );
 
   // --- Add stint with recommended cold pressures ---
   const handleAddStint = useCallback(() => {
-    if (!session || !session.stints || session.stints.length === 0) {
+    if (!event || !event.stints || event.stints.length === 0) {
       addStint("Stint 1");
       return;
     }
 
-    const stintNumber = session.stints.length + 1;
-    const lastStint = session.stints[session.stints.length - 1];
+    const stintNumber = event.stints.length + 1;
+    const lastStint = event.stints[event.stints.length - 1];
     // Compute initial recommendation using prev stint's conditions as default
     // (user will tweak in the new stint's StintStartFlow, which triggers live recompute)
     const recommendation = computeStintRecommendation(lastStint.id);
@@ -256,7 +256,7 @@ export default function PlannerPage() {
     } else {
       addStint(`Stint ${stintNumber}`);
     }
-  }, [session, addStint, computeStintRecommendation]);
+  }, [event, addStint, computeStintRecommendation]);
 
   /**
    * When user edits baseline on a non-first stint, auto-recompute cold pressures
@@ -268,7 +268,7 @@ export default function PlannerPage() {
       updateStintBaseline(stintId, updates);
 
       // If this is stint 2+ and user changed conditions/targets, recompute cold
-      if (!session || stintIdx === 0) return;
+      if (!event || stintIdx === 0) return;
       const relevantKeys: (keyof StintBaseline)[] = [
         "ambientMeasured",
         "asphaltMeasured",
@@ -280,8 +280,8 @@ export default function PlannerPage() {
       const changedRelevant = relevantKeys.some((k) => k in updates);
       if (!changedRelevant) return;
 
-      const prevStint = session.stints[stintIdx - 1];
-      const currentStint = session.stints.find((s) => s.id === stintId);
+      const prevStint = event.stints[stintIdx - 1];
+      const currentStint = event.stints.find((s) => s.id === stintId);
       if (!prevStint || !currentStint) return;
 
       // Merge the pending updates into a temporary view of the current baseline
@@ -296,7 +296,7 @@ export default function PlannerPage() {
         });
       }
     },
-    [session, updateStintBaseline, computeRecForNextStint]
+    [event, updateStintBaseline, computeRecForNextStint]
   );
 
   // --- Toggle stint collapse ---
@@ -314,22 +314,22 @@ export default function PlannerPage() {
 
   // ===== RENDER =========================================================
 
-  if (!session) {
+  if (!event) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-6">
         <h1 className="text-2xl font-bold text-gray-200">Pressure Planner</h1>
         <p className="text-gray-400 text-center max-w-md">
-          Start a new session to begin logging pitstop data and calculating tire
+          Start a new event to begin logging pitstop data and calculating tire
           pressures.
         </p>
-        <Button size="lg" onClick={() => setShowNewSessionModal(true)}>
-          + New Session
+        <Button size="lg" onClick={() => setShowNewEventModal(true)}>
+          + New Event
         </Button>
 
-        <NewSessionModal
-          open={showNewSessionModal}
-          onClose={() => setShowNewSessionModal(false)}
-          onSubmit={handleCreateSession}
+        <NewEventModal
+          open={showNewEventModal}
+          onClose={() => setShowNewEventModal(false)}
+          onSubmit={handleCreateEvent}
         />
       </div>
     );
@@ -337,38 +337,38 @@ export default function PlannerPage() {
 
   return (
     <div className="space-y-6">
-      {/* ── Header bar ── */}
+      {/* -- Header bar -- */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-100">Pressure Planner</h1>
         <div className="flex gap-2">
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setShowNewSessionModal(true)}
+            onClick={() => setShowNewEventModal(true)}
           >
-            New Session
+            New Event
           </Button>
-          <Button variant="secondary" size="sm" onClick={closeSession}>
-            Close Session
+          <Button variant="secondary" size="sm" onClick={closeEvent}>
+            Close Event
           </Button>
         </div>
       </div>
 
-      {/* ── Session metadata ── */}
-      <SessionHeader session={session} onUpdate={updateSession} />
+      {/* -- Event metadata -- */}
+      <EventHeader event={event} onUpdate={updateEvent} />
 
-      {/* ── Stints ── */}
+      {/* -- Stints -- */}
       <div className="space-y-8">
-        {session.stints?.map((stint, stintIdx) => {
+        {event.stints?.map((stint, stintIdx) => {
           const isCollapsed = collapsedStints.has(stint.id);
-          const isLastStint = stintIdx === (session.stints?.length ?? 0) - 1;
+          const isLastStint = stintIdx === (event.stints?.length ?? 0) - 1;
           const recommendation = computeStintRecommendation(stint.id);
 
           // Compute live recommendation for this stint from the PREVIOUS stint's
           // pitstop data + THIS stint's conditions/targets.
           let nextStintRec: RecommendationOutput | null = null;
           if (stintIdx > 0) {
-            const prevStint = session.stints![stintIdx - 1];
+            const prevStint = event.stints![stintIdx - 1];
             nextStintRec = computeRecForNextStint(prevStint, stint);
           }
 
@@ -377,7 +377,7 @@ export default function PlannerPage() {
               key={stint.id}
               className="rounded-lg border border-gray-700 bg-gray-900/50 overflow-hidden"
             >
-              {/* ── Stint header ── */}
+              {/* -- Stint header -- */}
               <button
                 type="button"
                 className="w-full flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
@@ -428,10 +428,10 @@ export default function PlannerPage() {
                 </div>
               </button>
 
-              {/* ── Stint body (collapsible) ── */}
+              {/* -- Stint body (collapsible) -- */}
               {!isCollapsed && (
                 <div className="p-4 pt-0 space-y-4">
-                  {/* ── Baseline / StintStartFlow ── */}
+                  {/* -- Baseline / StintStartFlow -- */}
                   <StintStartFlow
                     stint={stint}
                     pressureUnit={settings.unitsPressure}
@@ -456,7 +456,7 @@ export default function PlannerPage() {
                     onWeatherOverride={handleWeatherOverride}
                   />
 
-                  {/* ── Pitstops ── */}
+                  {/* -- Pitstops -- */}
                   <div className="space-y-4 pl-4 border-l-2 border-slate-700">
                     {stint.pitstops?.map((pitstop) => {
                       const isLatest =
@@ -502,7 +502,7 @@ export default function PlannerPage() {
                     })}
                   </div>
 
-                  {/* ── Add pitstop ── */}
+                  {/* -- Add pitstop -- */}
                   <div className="flex ml-4 mt-2">
                     <Button
                       variant="secondary"
@@ -513,7 +513,7 @@ export default function PlannerPage() {
                     </Button>
                   </div>
 
-                  {/* ── Recommendation for this stint ── */}
+                  {/* -- Recommendation for this stint -- */}
                   {stint.pitstops?.length > 0 && (() => {
                     const compound = stint.baseline?.compound;
                     const effectiveMin = resolveMinColdPressure(compound, settings);
@@ -525,7 +525,7 @@ export default function PlannerPage() {
                         minColdPressureBar={effectiveMin}
                         collapsible={true}
                         defaultCollapsed={true}
-                        session={session}
+                        event={event}
                         settings={settings}
                         currentConditions={currentConditions}
                         getForecastAtTime={getForecastAtTime}
@@ -539,18 +539,18 @@ export default function PlannerPage() {
         })}
       </div>
 
-      {/* ── Add Stint + bottom actions ── */}
+      {/* -- Add Stint + bottom actions -- */}
       <div className="flex justify-center gap-4 pt-4 border-t border-slate-700">
         <Button variant="primary" onClick={handleAddStint}>
           + Add Stint
         </Button>
       </div>
 
-      {/* ── Modals ── */}
-      <NewSessionModal
-        open={showNewSessionModal}
-        onClose={() => setShowNewSessionModal(false)}
-        onSubmit={handleCreateSession}
+      {/* -- Modals -- */}
+      <NewEventModal
+        open={showNewEventModal}
+        onClose={() => setShowNewEventModal(false)}
+        onSubmit={handleCreateEvent}
       />
 
       <BaselinePickerModal

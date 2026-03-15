@@ -1,23 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSessionContext } from "@/context/SessionContext";
-import { getAllSessions, clearHistory, deleteSession } from "@/lib/persistence/db";
+import { useEventContext } from "@/context/EventContext";
+import { getAllEvents, clearHistory, deleteEvent } from "@/lib/persistence/db";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { SearchFilterBar, useSessionFilter } from "@/components/ui/SearchFilterBar";
+import { SearchFilterBar, useEventFilter } from "@/components/ui/SearchFilterBar";
 import Link from "next/link";
-import type { Session } from "@/lib/domain/models";
+import type { Event } from "@/lib/domain/models";
 
 export default function HistoryPage() {
-  const { setSession } = useSessionContext();
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const { setEvent } = useEventContext();
+  const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadSessions = async () => {
+  const loadEvents = async () => {
     try {
-      const data = await getAllSessions();
-      setSessions(data.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")));
+      const data = await getAllEvents();
+      setEvents(data.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")));
     } catch (err) {
       console.error(err);
     } finally {
@@ -26,31 +26,31 @@ export default function HistoryPage() {
   };
 
   useEffect(() => {
-    loadSessions();
+    loadEvents();
   }, []);
 
-  const { query, setQuery, filtered } = useSessionFilter(sessions);
+  const { query, setQuery, filtered } = useEventFilter(events);
 
   const handleClearHistory = async () => {
     if (!confirm("Are you sure you want to delete all history?")) return;
     await clearHistory();
-    setSessions([]);
+    setEvents([]);
   };
 
-  const handleDeleteSession = async (id: string) => {
-    if (!confirm("Delete this session?")) return;
-    await deleteSession(id);
-    await loadSessions();
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm("Delete this event?")) return;
+    await deleteEvent(id);
+    await loadEvents();
   };
 
-  const handleLoadSession = (s: Session) => {
-    setSession(s);
+  const handleLoadEvent = (s: Event) => {
+    setEvent(s);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl font-bold text-gray-100">Session History</h1>
+        <h1 className="text-xl font-bold text-gray-100">Event History</h1>
         <Button variant="secondary" onClick={handleClearHistory}>
           Clear History
         </Button>
@@ -58,10 +58,10 @@ export default function HistoryPage() {
 
       {isLoading ? (
         <p className="text-gray-400">Loading...</p>
-      ) : sessions.length === 0 ? (
+      ) : events.length === 0 ? (
         <Card>
           <div className="text-center py-10">
-            <p className="text-gray-400 mb-4">No saved sessions yet.</p>
+            <p className="text-gray-400 mb-4">No saved events yet.</p>
             <Link href="/planner">
               <Button>Start Planner</Button>
             </Link>
@@ -73,18 +73,18 @@ export default function HistoryPage() {
             query={query}
             onChange={setQuery}
             resultCount={filtered.length}
-            totalCount={sessions.length}
+            totalCount={events.length}
           />
 
           {filtered.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">No sessions match your search.</p>
+            <p className="text-gray-400 text-center py-8">No events match your search.</p>
           ) : (
             <div className="grid gap-4">
               {filtered.map((s) => (
                 <Card key={s.id} className="flex flex-col sm:flex-row gap-4 justify-between">
                   <div>
                     <h3 className="font-semibold text-gray-200">
-                      {s.name || "Unnamed Session"}
+                      {s.name || "Unnamed Event"}
                     </h3>
                     <div className="text-sm text-gray-400 space-y-1">
                       <p>Track: {s.trackName || "Unknown"}</p>
@@ -99,7 +99,7 @@ export default function HistoryPage() {
                     <Link href="/planner">
                       <Button
                         className="w-full"
-                        onClick={() => handleLoadSession(s)}
+                        onClick={() => handleLoadEvent(s)}
                       >
                         Load into active
                       </Button>
@@ -107,7 +107,7 @@ export default function HistoryPage() {
                     <Button
                       variant="secondary"
                       className="w-full"
-                      onClick={() => handleDeleteSession(s.id)}
+                      onClick={() => handleDeleteEvent(s.id)}
                     >
                       Delete
                     </Button>

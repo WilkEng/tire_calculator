@@ -2,24 +2,24 @@
 
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
-import type { Session } from "@/lib/domain/models";
+import type { Event } from "@/lib/domain/models";
 
-interface SessionHeaderProps {
-  session: Session;
-  onUpdate: (updates: Partial<Session>) => void;
+interface EventHeaderProps {
+  event: Event;
+  onUpdate: (updates: Partial<Event>) => void;
 }
 
-export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
+export function EventHeader({ event, onUpdate }: EventHeaderProps) {
   return (
     <Card>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-            Session Name
+            Event Name
           </span>
           <input
             type="text"
-            value={session.name}
+            value={event.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -35,7 +35,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="text"
-            value={session.trackName}
+            value={event.trackName}
             onChange={(e) => onUpdate({ trackName: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -51,7 +51,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="date"
-            value={session.date}
+            value={event.date}
             onChange={(e) => onUpdate({ date: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -70,7 +70,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="text"
-            value={session.vehicle ?? ""}
+            value={event.vehicle ?? ""}
             onChange={(e) => onUpdate({ vehicle: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -86,7 +86,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="text"
-            value={session.location ?? ""}
+            value={event.location ?? ""}
             onChange={(e) => onUpdate({ location: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -102,7 +102,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="text"
-            value={session.compoundPreset ?? ""}
+            value={event.compoundPreset ?? ""}
             onChange={(e) => onUpdate({ compoundPreset: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
@@ -118,14 +118,14 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
           </span>
           <input
             type="text"
-            value={session.notes ?? ""}
+            value={event.notes ?? ""}
             onChange={(e) => onUpdate({ notes: e.target.value })}
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
               focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
-            placeholder="Session notes..."
+            placeholder="Event notes..."
           />
         </label>
       </div>

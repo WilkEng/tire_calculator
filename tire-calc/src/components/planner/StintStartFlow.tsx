@@ -257,7 +257,7 @@ export function StintStartFlow({
           /* ──── Import Tab ──── */
           <div className="space-y-4">
             <p className="text-sm text-gray-400">
-              Import a baseline from a previously exported stint or pick from an existing session.
+              Import a baseline from a previously exported stint or pick from an existing event.
             </p>
 
             <div className="flex flex-wrap gap-3">
@@ -283,9 +283,9 @@ export function StintStartFlow({
             {isImported && stint.importedBaseline && (
               <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3 text-sm text-teal-300">
                 <span className="font-medium">Imported baseline</span>
-                {stint.importedBaseline.sourceSessionName && (
+                {stint.importedBaseline.sourceEventName && (
                   <span className="text-teal-400">
-                    {" "}from {stint.importedBaseline.sourceSessionName}
+                    {" "}from {stint.importedBaseline.sourceEventName}
                     {stint.importedBaseline.sourceStintName && ` / ${stint.importedBaseline.sourceStintName}`}
                   </span>
                 )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useSessionContext } from "@/context/SessionContext";
+import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { NumericInput } from "@/components/ui/NumericInput";
@@ -388,7 +388,7 @@ function CornerChart({
 // ═══════════════════════════════════════════════════════════════════
 
 export default function TemperatureAnalysisPage() {
-  const { session, updateSession, settings } = useSessionContext();
+  const { event, updateEvent, settings } = useEventContext();
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [comparisonLines, setComparisonLines] = useState<ComparisonLine[]>([]);
   const [runsExpanded, setRunsExpanded] = useState(false);
@@ -397,14 +397,14 @@ export default function TemperatureAnalysisPage() {
 
   const spreadThreshold = settings.camberSpreadThreshold ?? 12;
 
-  // ── Build all available data sources (current session + imported) ──
+  // ── Build all available data sources (current event + imported) ──
   const dataSources: DataSource[] = useMemo(() => {
-    if (!session) return [];
     const sources: DataSource[] = [];
+    if (!event) return [...importedSources];
 
-    // Temperature runs from current session
-    for (let i = 0; i < session.temperatureRuns.length; i++) {
-      const run = session.temperatureRuns[i];
+    // Temperature runs from current event
+    for (let i = 0; i < event.temperatureRuns.length; i++) {
+      const run = event.temperatureRuns[i];
       sources.push({
         id: `run-${run.id}`,
         label: `Run ${i + 1}${run.setupTag ? ` (${run.setupTag})` : ""}`,
@@ -414,8 +414,8 @@ export default function TemperatureAnalysisPage() {
       });
     }
 
-    // Pitstops with temperature readings from current session
-    for (const stint of session.stints) {
+    // Pitstops with temperature readings from current event
+    for (const stint of event.stints) {
       for (const pit of stint.pitstops) {
         if (pit.temperatureReadings && Object.keys(pit.temperatureReadings).length > 0) {
           const hasData = CORNERS.some((c) => {
@@ -435,11 +435,11 @@ export default function TemperatureAnalysisPage() {
       }
     }
 
-    // Add imported sources (from other sessions via picker)
+    // Add imported sources (from other events via picker)
     sources.push(...importedSources);
 
     return sources;
-  }, [session, importedSources]);
+  }, [event, importedSources]);
 
   // ── Resolve comparison lines ──
   const resolvedLines = useMemo(
@@ -525,7 +525,7 @@ export default function TemperatureAnalysisPage() {
   const handleImportPyroSources = useCallback((sources: PyroDataSource[]) => {
     const imported: DataSource[] = sources.map((s) => ({
       id: s.id,
-      label: `${s.sessionName} › ${s.label}`,
+      label: `${s.eventName} › ${s.label}`,
       type: s.type,
       readings: s.readings,
       notes: s.notes,
@@ -545,22 +545,22 @@ export default function TemperatureAnalysisPage() {
 
   // ── Add new temperature run ──
   const handleAddRun = () => {
-    if (!session || !session.stints?.length) return;
-    const latestStint = session.stints[session.stints.length - 1];
+    if (!event || !event.stints?.length) return;
+    const latestStint = event.stints[event.stints.length - 1];
     const latestPitstop = latestStint.pitstops?.[latestStint.pitstops.length - 1];
     const newRun = createTemperatureRun({
       linkedPitstopId: latestPitstop?.id,
     });
-    updateSession({
-      temperatureRuns: [...session.temperatureRuns, newRun],
+    updateEvent({
+      temperatureRuns: [...event.temperatureRuns, newRun],
     });
   };
 
   // ── Update a run ──
   const handleUpdateRun = (runId: string, updates: Partial<TemperatureRun>) => {
-    if (!session) return;
-    updateSession({
-      temperatureRuns: session.temperatureRuns.map((r) =>
+    if (!event) return;
+    updateEvent({
+      temperatureRuns: event.temperatureRuns.map((r) =>
         r.id === runId ? { ...r, ...updates } : r
       ),
     });
@@ -573,8 +573,8 @@ export default function TemperatureAnalysisPage() {
     zone: (typeof ZONES)[number],
     value: number | undefined
   ) => {
-    if (!session) return;
-    const run = session.temperatureRuns.find((r) => r.id === runId);
+    if (!event) return;
+    const run = event.temperatureRuns.find((r) => r.id === runId);
     if (!run) return;
 
     const currentReading: CornerTemperatureReading = (run.readings[corner] as CornerTemperatureReading) ?? {
@@ -596,20 +596,20 @@ export default function TemperatureAnalysisPage() {
 
   // ── Delete a run ──
   const handleDeleteRun = (runId: string) => {
-    if (!session) return;
-    updateSession({
-      temperatureRuns: session.temperatureRuns.filter((r) => r.id !== runId),
+    if (!event) return;
+    updateEvent({
+      temperatureRuns: event.temperatureRuns.filter((r) => r.id !== runId),
     });
   };
 
   // ── Compute averages for runs in selected group ──
   const groupedAverages = useMemo(() => {
-    if (!session) return null;
+    if (!event) return null;
 
     const runs =
       selectedGroup === "all"
-        ? session.temperatureRuns
-        : session.temperatureRuns.filter(
+        ? event.temperatureRuns
+        : event.temperatureRuns.filter(
             (r) => r.hotPressureGroup === selectedGroup || r.setupTag === selectedGroup
           );
 
@@ -644,27 +644,18 @@ export default function TemperatureAnalysisPage() {
     }
 
     return { averages, runCount: runs.length };
-  }, [session, selectedGroup]);
+  }, [event, selectedGroup]);
 
   // ── Get unique groups for filter ──
   const groups = useMemo(() => {
-    if (!session) return [];
+    if (!event) return [];
     const tags = new Set<string>();
-    for (const r of session.temperatureRuns) {
+    for (const r of event.temperatureRuns) {
       if (r.hotPressureGroup) tags.add(r.hotPressureGroup);
       if (r.setupTag) tags.add(r.setupTag);
     }
     return Array.from(tags);
-  }, [session]);
-
-  if (!session) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <h1 className="text-2xl font-bold text-gray-200">Temperature Analysis</h1>
-        <p className="text-gray-400">Load or create a session first.</p>
-      </div>
-    );
-  }
+  }, [event]);
 
   return (
     <div className="space-y-6">
@@ -674,9 +665,11 @@ export default function TemperatureAnalysisPage() {
           <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
             📂 Load from History
           </Button>
-          <Button size="sm" onClick={handleAddRun}>
-            + Add Temperature Run
-          </Button>
+          {event && (
+            <Button size="sm" onClick={handleAddRun}>
+              + Add Temperature Run
+            </Button>
+          )}
         </div>
       </div>
 
@@ -809,7 +802,7 @@ export default function TemperatureAnalysisPage() {
       )}
 
       {/* ── Group Filter & Averages ── */}
-      {(groups.length > 0 || session.temperatureRuns.length > 0) && (
+      {event && (groups.length > 0 || event.temperatureRuns.length > 0) && (
         <Card title="Run Averages">
           <div className="mb-4">
             <Select
@@ -880,6 +873,7 @@ export default function TemperatureAnalysisPage() {
       )}
 
       {/* ── Individual Runs (collapsible) ── */}
+      {event && (
       <Card
         title="Temperature Runs"
         actions={
@@ -893,17 +887,17 @@ export default function TemperatureAnalysisPage() {
           </div>
         }
       >
-        {session.temperatureRuns.length === 0 ? (
+        {event.temperatureRuns.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">
             No temperature runs recorded. Add one to start logging pyrometer / probe readings.
           </p>
         ) : !runsExpanded ? (
           <p className="text-sm text-gray-500">
-            {session.temperatureRuns.length} run(s) recorded. Click &quot;Expand&quot; to view/edit.
+            {event.temperatureRuns.length} run(s) recorded. Click &quot;Expand&quot; to view/edit.
           </p>
         ) : (
           <div className="space-y-4">
-            {session.temperatureRuns.map((run, idx) => (
+            {event.temperatureRuns.map((run, idx) => (
               <div
                 key={run.id}
                 className="p-4 bg-gray-800/40 rounded-lg border border-gray-700/30 space-y-4"
@@ -987,13 +981,14 @@ export default function TemperatureAnalysisPage() {
           </div>
         )}
       </Card>
+      )}
 
       {/* ── Pyro Picker Modal ── */}
       <PyroPickerModal
         open={showPyroPicker}
         onClose={() => setShowPyroPicker(false)}
         onSelect={handleImportPyroSources}
-        currentSessionId={session.id}
+        currentEventId={event?.id}
       />
     </div>
   );

@@ -1,12 +1,13 @@
 // ─── IndexedDB Persistence Layer ───────────────────────────────────
 //
 // Local-first storage using the `idb` library.
-// Two object stores: sessions and settings.
+// Two object stores: events and settings.
 // Autosave, CRUD, and recovery after refresh.
 // ────────────────────────────────────────────────────────────────────
 
 import { openDB, type IDBPDatabase } from "idb";
-import type { Session, AppSettings } from "../domain/models";
+import type { Event } from "../domain/models";
+import type { AppSettings } from "../domain/models";
 import { DEFAULT_APP_SETTINGS } from "../domain/models";
 import { nowISO } from "../utils/helpers";
 
@@ -26,14 +27,14 @@ function getDB(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        // Sessions store: keyed by session.id
+        // Events store: keyed by event.id
         if (!db.objectStoreNames.contains(SESSIONS_STORE)) {
-          const sessionStore = db.createObjectStore(SESSIONS_STORE, {
+          const eventStore = db.createObjectStore(SESSIONS_STORE, {
             keyPath: "id",
           });
-          sessionStore.createIndex("by-track", "trackName");
-          sessionStore.createIndex("by-date", "date");
-          sessionStore.createIndex("by-updated", "updatedAt");
+          eventStore.createIndex("by-track", "trackName");
+          eventStore.createIndex("by-date", "date");
+          eventStore.createIndex("by-updated", "updatedAt");
         }
 
         // Settings store: single key-value
@@ -46,40 +47,40 @@ function getDB(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
-// ─── Session CRUD ──────────────────────────────────────────────────
+// ─── Event CRUD ──────────────────────────────────────────────────
 
-/** Save or update a session */
-export async function saveSession(session: Session): Promise<void> {
+/** Save or update an event */
+export async function saveEvent(event: Event): Promise<void> {
   const db = await getDB();
-  const updated: Session = { ...session, updatedAt: nowISO() };
+  const updated: Event = { ...event, updatedAt: nowISO() };
   await db.put(SESSIONS_STORE, updated);
 }
 
-/** Get a single session by id */
-export async function getSession(id: string): Promise<Session | undefined> {
+/** Get a single event by id */
+export async function getEvent(id: string): Promise<Event | undefined> {
   const db = await getDB();
   return db.get(SESSIONS_STORE, id);
 }
 
-/** Get all sessions, sorted by updatedAt (newest first) */
-export async function getAllSessions(): Promise<Session[]> {
+/** Get all events, sorted by updatedAt (newest first) */
+export async function getAllEvents(): Promise<Event[]> {
   const db = await getDB();
   const all = await db.getAll(SESSIONS_STORE);
-  return all.sort((a: Session, b: Session) =>
+  return all.sort((a: Event, b: Event) =>
     b.updatedAt.localeCompare(a.updatedAt)
   );
 }
 
-/** Delete a session by id */
-export async function deleteSession(id: string): Promise<void> {
+/** Delete an event by id */
+export async function deleteEvent(id: string): Promise<void> {
   const db = await getDB();
   await db.delete(SESSIONS_STORE, id);
 }
 
-/** Get sessions for a specific track name */
-export async function getSessionsByTrack(
+/** Get events for a specific track name */
+export async function getEventsByTrack(
   trackName: string
-): Promise<Session[]> {
+): Promise<Event[]> {
   const db = await getDB();
   const index = db
     .transaction(SESSIONS_STORE)
@@ -108,21 +109,21 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 
 // ─── Bulk Operations (for import/export) ───────────────────────────
 
-/** Replace all sessions with a new set (used for full backup import) */
-export async function replaceAllSessions(
-  sessions: Session[]
+/** Replace all events with a new set (used for full backup import) */
+export async function replaceAllEvents(
+  events: Event[]
 ): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(SESSIONS_STORE, "readwrite");
   await tx.objectStore(SESSIONS_STORE).clear();
-  for (const s of sessions) {
+  for (const s of events) {
     await tx.objectStore(SESSIONS_STORE).put(s);
   }
   await tx.done;
 }
 
-/** Get total count of sessions */
-export async function getSessionCount(): Promise<number> {
+/** Get total count of events */
+export async function getEventCount(): Promise<number> {
   const db = await getDB();
   return db.count(SESSIONS_STORE);
 }

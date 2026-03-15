@@ -25,7 +25,7 @@
 
 import {
   type AppSettings,
-  type Session,
+  type Event,
   type Stint,
   type PitstopEntry,
   type CornerValues,
@@ -112,11 +112,11 @@ export interface ResolvedReference {
   /** The cold pressures that were used at the START of this stint */
   coldPressures: PartialCornerValues;
   source: ReferenceSource;
-  /** Whether this came from the same session */
-  sameSession: boolean;
+  /** Whether this came from the same event */
+  sameEvent: boolean;
 }
 
-/** Carry-over bias from prior sessions */
+/** Carry-over bias from prior events */
 export interface CarryOverBias {
   /** Per-corner pressure bias (already weighted) */
   biasPerCorner: PartialCornerValues;
@@ -226,29 +226,29 @@ export function expandTargets(
  * Choose the best reference pitstop for computing the next recommendation.
  *
  * Priority order:
- *   1. Same session, nearest previous similar stint
- *   2. Same session, nearest previous stint
- *   3. Prior session, same track & same target mode
- *   4. Prior session, same track
+ *   1. Same event, nearest previous similar stint
+ *   2. Same event, nearest previous stint
+ *   3. Prior event, same track & same target mode
+ *   4. Prior event, same track
  *   5. classic-mode fallback (returns undefined)
  */
 export function selectReference(
-  currentSession: Session,
+  currentEvent: Event,
   currentStintId: string,
   currentPitstopId: string,
-  priorSessions: Session[],
+  priorEvents: Event[],
   targetMode: TargetMode,
 ): ResolvedReference | undefined {
 
-  // Flatten same-session pitstops into ordered list of { stint, pitstop }
-  const sameSessionCandidates: { stint: Stint, pitstop: PitstopEntry }[] = [];
+  // Flatten same-event pitstops into ordered list of { stint, pitstop }
+  const sameEventCandidates: { stint: Stint, pitstop: PitstopEntry }[] = [];
   let foundCurrent = false;
 
   // We want to collect all pitstops that occurred BEFORE the current one in time.
   // Assuming stints and pitstops are in chronological order:
   let currentStint: Stint | undefined;
   let currentPitstop: PitstopEntry | undefined;
-  for (const stint of currentSession.stints) {
+  for (const stint of currentEvent.stints) {
     for (const pitstop of stint.pitstops) {
       if (stint.id === currentStintId && pitstop.id === currentPitstopId) {
         currentStint = stint;
@@ -257,67 +257,67 @@ export function selectReference(
         break; 
       }
       if (hasMinimalData(stint, pitstop)) {
-        sameSessionCandidates.push({ stint, pitstop });
+        sameEventCandidates.push({ stint, pitstop });
       }
     }
     if (foundCurrent) break;
   }
   
   // Reverse to make it newest-first before the current point
-  sameSessionCandidates.reverse();
+  sameEventCandidates.reverse();
 
   // 1: nearest similar (same target mode)
-  const similar = sameSessionCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
+  const similar = sameEventCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
   if (similar) {
     const cold = getColdForStint(similar.stint) ?? {};
     return {
       stint: similar.stint,
       pitstop: similar.pitstop,
       coldPressures: cold,
-      source: "same-session-similar",
-      sameSession: true,
+      source: "same-event-similar",
+      sameEvent: true,
     };
   }
 
   // 2: nearest any
-  if (sameSessionCandidates.length > 0) {
-    const best = sameSessionCandidates[0];
+  if (sameEventCandidates.length > 0) {
+    const best = sameEventCandidates[0];
     const cold = getColdForStint(best.stint) ?? {};
     return {
       stint: best.stint,
       pitstop: best.pitstop,
       coldPressures: cold,
-      source: "same-session-nearest",
-      sameSession: true,
+      source: "same-event-nearest",
+      sameEvent: true,
     };
   }
 
   // 2.5: Self-reference — use the current pitstop itself when it has data
-  //      (covers the very first pitstop in the session)
+  //      (covers the very first pitstop in the event)
   if (currentStint && currentPitstop && hasMinimalData(currentStint, currentPitstop)) {
     const cold = getColdForStint(currentStint) ?? {};
     return {
       stint: currentStint,
       pitstop: currentPitstop,
       coldPressures: cold,
-      source: "same-session-similar",
-      sameSession: true,
+      source: "same-event-similar",
+      sameEvent: true,
     };
   }
 
-  // ── 3 & 4: Prior sessions (sorted newest-first) ──
-  const sorted = [...priorSessions]
-    .filter((s) => s.id !== currentSession.id)
+  // ── 3 & 4: Prior events (sorted newest-first) ──
+  const sorted = [...priorEvents]
+    .filter((s) => s.id !== currentEvent.id)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-  for (const session of sorted) {
-    if (session.trackName.toLowerCase() !== currentSession.trackName.toLowerCase()) {
+  for (const evt of sorted) {
+    if (evt.trackName.toLowerCase() !== currentEvent.trackName.toLowerCase()) {
       continue;
     }
 
-    // Get latest pitstops with data from this session
+    // Get latest pitstops with data from this event
     const priorCandidates: { stint: Stint, pitstop: PitstopEntry }[] = [];
-    for (const stint of session.stints) {
+    for (const stint of evt.stints) {
       for (const pitstop of stint.pitstops) {
         if (hasMinimalData(stint, pitstop)) {
           priorCandidates.push({ stint, pitstop });
@@ -334,8 +334,8 @@ export function selectReference(
         stint: sameMode.stint,
         pitstop: sameMode.pitstop,
         coldPressures: cold,
-        source: "prior-session-same-track-same-mode",
-        sameSession: false,
+        source: "prior-event-same-track-same-mode",
+        sameEvent: false,
       };
     }
 
@@ -347,8 +347,8 @@ export function selectReference(
         stint: best.stint,
         pitstop: best.pitstop,
         coldPressures: cold,
-        source: "prior-session-same-track",
-        sameSession: false,
+        source: "prior-event-same-track",
+        sameEvent: false,
       };
     }
   }
@@ -416,7 +416,7 @@ export function computeCarryOverConfidence(
   refTrackName: string
 ): number {
   let score = 0;
-  score += ref.sameSession ? 0.4 : 0.1;
+  score += ref.sameEvent ? 0.4 : 0.1;
   if (refTrackName.toLowerCase() === currentTrackName.toLowerCase()) score += 0.2;
   if (ref.stint.baseline.targetMode === currentTargetMode) score += 0.15;
 
@@ -436,16 +436,16 @@ export function computeCarryOverConfidence(
   return Math.min(1, score);
 }
 
-export function computeCarryOverConfidenceWithSession(
+export function computeCarryOverConfidenceWithEvent(
   ref: ResolvedReference,
-  refSession: Session,
+  refEvent: Event,
   currentTargetMode: TargetMode,
   currentAmbient: number | undefined,
   currentTrackName: string
 ): number {
   let score = 0;
-  score += ref.sameSession ? 0.4 : 0.1;
-  if (refSession.trackName.toLowerCase() === currentTrackName.toLowerCase()) score += 0.2;
+  score += ref.sameEvent ? 0.4 : 0.1;
+  if (refEvent.trackName.toLowerCase() === currentTrackName.toLowerCase()) score += 0.2;
   if (ref.stint.baseline.targetMode === currentTargetMode) score += 0.15;
 
   const refBaseline = getBaselineConditions(ref.stint);
@@ -471,8 +471,8 @@ export function computeCarryOverConfidenceWithSession(
 }
 
 export function computeCarryOverBias(
-  priorSessions: Session[],
-  currentSession: Session,
+  priorEvents: Event[],
+  currentEvent: Event,
   currentTargetMode: TargetMode,
   currentAmbient: number | undefined,
   coefficients: EngineCoefficients
@@ -484,10 +484,10 @@ export function computeCarryOverBias(
 
   const qualified: { residuals: CornerValues; weight: number }[] = [];
 
-  for (const session of priorSessions) {
-    if (session.id === currentSession.id) continue;
+  for (const evt of priorEvents) {
+    if (evt.id === currentEvent.id) continue;
 
-    for (const stint of session.stints) {
+    for (const stint of evt.stints) {
       for (const pitstop of stint.pitstops) {
         if (!hasMinimalData(stint, pitstop)) continue;
 
@@ -496,16 +496,16 @@ export function computeCarryOverBias(
           stint,
           pitstop,
           coldPressures: cold,
-          source: "prior-session-same-track",
-          sameSession: false,
+          source: "prior-event-same-track",
+          sameEvent: false,
         };
 
-        const conf = computeCarryOverConfidenceWithSession(
+        const conf = computeCarryOverConfidenceWithEvent(
           ref,
-          session,
+          evt,
           currentTargetMode,
           currentAmbient,
-          currentSession.trackName,
+          currentEvent.trackName,
         );
 
         if (conf < 0.3) continue;
@@ -543,13 +543,13 @@ export function computeCarryOverBias(
 
 // ─── Main Recommendation Engine ────────────────────────────────────
 export interface RecommendationInput {
-  currentSession: Session;
+  currentEvent: Event;
   currentStintId: string;
   currentPitstopId: string;
   nextConditions: NextStintConditions;
   targetMode: TargetMode;
   targets: Targets;
-  priorSessions: Session[];
+  priorEvents: Event[];
   settings: AppSettings;
   /** Compound type for the next stint — determines kAmbient/kTrack */
   compound?: string;
@@ -559,13 +559,13 @@ export function computeRecommendation(
   input: RecommendationInput
 ): RecommendationOutput {
   const {
-    currentSession,
+    currentEvent,
     currentStintId,
     currentPitstopId,
     nextConditions,
     targetMode,
     targets,
-    priorSessions,
+    priorEvents,
     settings,
     compound,
   } = input;
@@ -581,10 +581,10 @@ export function computeRecommendation(
   const targetCorners = expandTargets(targetMode, targets);
 
   const ref = selectReference(
-    currentSession,
+    currentEvent,
     currentStintId,
     currentPitstopId,
-    priorSessions,
+    priorEvents,
     targetMode
   );
 
@@ -609,10 +609,10 @@ export function computeRecommendation(
     biasPerCorner: { FL: 0, FR: 0, RL: 0, RR: 0 },
     confidence: 0,
   };
-  if (settings.carryOverEnabled && priorSessions.length > 0) {
+  if (settings.carryOverEnabled && priorEvents.length > 0) {
     carryOver = computeCarryOverBias(
-      priorSessions,
-      currentSession,
+      priorEvents,
+      currentEvent,
       targetMode,
       nextConditions.ambientTemp,
       coefficients
@@ -714,8 +714,8 @@ export function computeRecommendation(
     ref,
     targetMode,
     nextConditions.ambientTemp,
-    currentSession.trackName,
-    currentSession.trackName
+    currentEvent.trackName,
+    currentEvent.trackName
   );
 
   return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSessionContext } from "@/context/SessionContext";
+import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
@@ -11,7 +11,7 @@ import type { CustomCompound } from "@/lib/domain/models";
 import { generateId } from "@/lib/utils/helpers";
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = useSessionContext();
+  const { settings, updateSettings } = useEventContext();
 
   // ── Custom compound helpers ──
   const addCustomCompound = () => {
@@ -108,7 +108,7 @@ export default function SettingsPage() {
       </Card>
 
       {/* ── Carry-Over ── */}
-      <Card title="Session Carry-Over">
+      <Card title="Event Carry-Over">
         <label className="flex items-center gap-3 text-sm">
           <input
             type="checkbox"
@@ -119,12 +119,12 @@ export default function SettingsPage() {
             className="accent-[#00d4aa] w-4 h-4"
           />
           <span className="text-gray-200">
-            Enable session-to-session carry-over
+            Enable event-to-event carry-over
           </span>
         </label>
         <p className="text-xs text-gray-500 mt-2">
-          When enabled, prior session data gently biases recommendations.
-          Same-session data always dominates.
+          When enabled, prior event data gently biases recommendations.
+          Same-event data always dominates.
         </p>
       </Card>
 

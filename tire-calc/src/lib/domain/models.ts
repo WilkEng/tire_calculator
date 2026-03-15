@@ -59,10 +59,10 @@ export type WeatherSource = "open-meteo-forecast" | "open-meteo-history" | "manu
 
 /** Where the reference for a recommendation came from */
 export type ReferenceSource =
-  | "same-session-similar"
-  | "same-session-nearest"
-  | "prior-session-same-track-same-mode"
-  | "prior-session-same-track"
+  | "same-event-similar"
+  | "same-event-nearest"
+  | "prior-event-same-track-same-mode"
+  | "prior-event-same-track"
   | "classic-mode-fallback";
 
 // ─── Small Value Objects ───────────────────────────────────────────
@@ -207,9 +207,9 @@ export interface Stint {
   /** The starting conditions and targets for this stint */
   baseline: StintBaseline;
 
-  /** If the baseline was imported from a file or another session */
+  /** If the baseline was imported from a file or another event */
   importedBaseline?: {
-    sourceSessionName?: string;
+    sourceEventName?: string;
     sourceStintName?: string;
     importedAt: string; // ISO 8601
   };
@@ -265,9 +265,9 @@ export interface UserWeatherOverride {
   asphaltOverride?: number;  // user-measured asphalt temp
 }
 
-// ─── Session ───────────────────────────────────────────────────────
+// ─── Event ───────────────────────────────────────────────────────
 
-export interface Session {
+export interface Event {
   id: string;
   name: string;
   trackName: string;
@@ -284,7 +284,7 @@ export interface Session {
   createdAt: string;  // ISO 8601
   updatedAt: string;  // ISO 8601
 
-  /** Each session consists of multiple stints (e.g., FP1, Quali). */
+  /** Each event consists of multiple stints (e.g., FP1, Quali). */
   stints: Stint[];
 
   /** User-entered ambient/asphalt overrides throughout the day */
@@ -298,6 +298,9 @@ export interface Session {
   appVersion: string;
 }
 
+/** @deprecated Use Event instead */
+export type Session = Event;
+
 // ─── App Settings ──────────────────────────────────────────────────
 
 export interface AppSettings {
@@ -306,12 +309,12 @@ export interface AppSettings {
 
   /** Default starting tire temperature when none is measured */
   defaultStartTireTemp: number;
-  /** Default target mode for new sessions */
+  /** Default target mode for new events */
   defaultTargetMode: TargetMode;
   /** Default compound for new stints (built-in name or custom compound ID) */
   defaultCompound: string;
 
-  /** Whether session-to-session carry-over is active */
+  /** Whether event-to-event carry-over is active */
   carryOverEnabled: boolean;
   /** Weather provider key */
   weatherProvider: "open-meteo";

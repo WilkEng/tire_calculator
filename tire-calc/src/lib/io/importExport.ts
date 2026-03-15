@@ -1,21 +1,21 @@
 // ─── Import / Export Services ──────────────────────────────────────
 //
-// Versioned JSON import/export for sessions and full backup.
+// Versioned JSON import/export for events and full backup.
 // Optional CSV export for spreadsheet analysis.
 // Strict schema validation with graceful migration hooks.
 // ────────────────────────────────────────────────────────────────────
 
-import type { Session, AppSettings, StintBaseline, PitstopEntry } from "../domain/models";
+import type { Event, AppSettings, StintBaseline, PitstopEntry } from "../domain/models";
 import { SCHEMA_VERSION, APP_VERSION } from "../domain/models";
 
 // ─── Export Types ──────────────────────────────────────────────────
 
-export interface SessionExport {
-  type: "tire-calc-session";
+export interface EventExport {
+  type: "tire-calc-event";
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-  session: Session;
+  event: Event;
 }
 
 export interface FullBackupExport {
@@ -23,7 +23,7 @@ export interface FullBackupExport {
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-  sessions: Session[];
+  events: Event[];
   settings: AppSettings;
 }
 
@@ -33,31 +33,31 @@ export interface ImportResult {
   warnings: string[];
 }
 
-export interface SessionImportResult extends ImportResult {
-  session?: Session;
+export interface EventImportResult extends ImportResult {
+  event?: Event;
 }
 
 export interface FullBackupImportResult extends ImportResult {
-  sessions?: Session[];
+  events?: Event[];
   settings?: AppSettings;
 }
 
 // ─── Export Functions ──────────────────────────────────────────────
 
-/** Export a single session as a typed JSON object */
-export function exportSession(session: Session): SessionExport {
+/** Export a single event as a typed JSON object */
+export function exportEvent(event: Event): EventExport {
   return {
-    type: "tire-calc-session",
+    type: "tire-calc-event",
     schemaVersion: SCHEMA_VERSION,
     appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
-    session: structuredClone(session),
+    event: structuredClone(event),
   };
 }
 
-/** Export all sessions + settings as a full backup */
+/** Export all events + settings as a full backup */
 export function exportFullBackup(
-  sessions: Session[],
+  events: Event[],
   settings: AppSettings
 ): FullBackupExport {
   return {
@@ -65,13 +65,13 @@ export function exportFullBackup(
     schemaVersion: SCHEMA_VERSION,
     appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
-    sessions: structuredClone(sessions),
+    events: structuredClone(events),
     settings: structuredClone(settings),
   };
 }
 
 /** Convert export object to a downloadable JSON string */
-export function toJSON(data: SessionExport | FullBackupExport): string {
+export function toJSON(data: EventExport | FullBackupExport): string {
   return JSON.stringify(data, null, 2);
 }
 
@@ -93,8 +93,8 @@ export function downloadJSON(
 
 // ─── Import Functions ──────────────────────────────────────────────
 
-/** Parse and validate a session import */
-export function importSession(json: string): SessionImportResult {
+/** Parse and validate an event import */
+export function importEvent(json: string): EventImportResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -111,10 +111,10 @@ export function importSession(json: string): SessionImportResult {
 
   const obj = data as Record<string, unknown>;
 
-  if (obj.type !== "tire-calc-session") {
+  if (obj.type !== "tire-calc-event") {
     return {
       success: false,
-      errors: [`Expected type "tire-calc-session", got "${String(obj.type)}".`],
+      errors: [`Expected type "tire-calc-event", got "${String(obj.type)}".`],
       warnings: [],
     };
   }
@@ -138,17 +138,17 @@ export function importSession(json: string): SessionImportResult {
     return { success: false, errors, warnings };
   }
 
-  const session = obj.session;
-  const sessionErrors = validateSession(session);
-  if (sessionErrors.length > 0) {
-    return { success: false, errors: sessionErrors, warnings };
+  const parsed = obj.event;
+  const eventErrors = validateEvent(parsed);
+  if (eventErrors.length > 0) {
+    return { success: false, errors: eventErrors, warnings };
   }
 
   return {
     success: true,
     errors: [],
     warnings,
-    session: session as Session,
+    event: parsed as Event,
   };
 }
 
@@ -197,16 +197,16 @@ export function importFullBackup(json: string): FullBackupImportResult {
     return { success: false, errors, warnings };
   }
 
-  // Validate sessions array
-  if (!Array.isArray(obj.sessions)) {
-    errors.push("Missing or invalid sessions array.");
+  // Validate events array
+  if (!Array.isArray(obj.events)) {
+    errors.push("Missing or invalid events array.");
     return { success: false, errors, warnings };
   }
 
-  for (let i = 0; i < (obj.sessions as unknown[]).length; i++) {
-    const sErrors = validateSession((obj.sessions as unknown[])[i]);
+  for (let i = 0; i < (obj.events as unknown[]).length; i++) {
+    const sErrors = validateEvent((obj.events as unknown[])[i]);
     for (const e of sErrors) {
-      errors.push(`sessions[${i}]: ${e}`);
+      errors.push(`events[${i}]: ${e}`);
     }
   }
 
@@ -223,15 +223,15 @@ export function importFullBackup(json: string): FullBackupImportResult {
     success: true,
     errors: [],
     warnings,
-    sessions: obj.sessions as Session[],
+    events: obj.events as Event[],
     settings: obj.settings as AppSettings,
   };
 }
 
 // ─── CSV Export ────────────────────────────────────────────────────
 
-/** Export a session's pitstop data as CSV for spreadsheet analysis */
-export function exportSessionCSV(session: Session): string {
+/** Export a event's pitstop data as CSV for spreadsheet analysis */
+export function exportEventCSV(event: Event): string {
   const headers = [
     "Stint",
     "Pitstop",
@@ -258,7 +258,7 @@ export function exportSessionCSV(session: Session): string {
   ];
 
   const rows: (string | number)[][] = [];
-  (session.stints || []).forEach(stint => {
+  (event.stints || []).forEach(stint => {
     const baseline = stint.baseline;
     (stint.pitstops || []).forEach((p, idx) => {
       rows.push([
@@ -389,15 +389,15 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function validateSession(s: unknown): string[] {
+function validateEvent(s: unknown): string[] {
   const errors: string[] = [];
   if (!isObject(s)) {
-    errors.push("Session is not an object.");
+    errors.push("Event is not an object.");
     return errors;
   }
   const obj = s as Record<string, unknown>;
-  if (typeof obj.id !== "string" || !obj.id) errors.push("Missing session id.");
-  if (typeof obj.name !== "string") errors.push("Missing session name.");
+  if (typeof obj.id !== "string" || !obj.id) errors.push("Missing event id.");
+  if (typeof obj.name !== "string") errors.push("Missing event name.");
   if (typeof obj.trackName !== "string") errors.push("Missing trackName.");
   // v2+ uses stints[].pitstops, v1 used top-level pitstops
   if (!Array.isArray(obj.stints) && !Array.isArray(obj.pitstops)) {
