@@ -5,17 +5,14 @@ import { useEventContext } from "@/context/EventContext";
 import { useSessionState } from "@/hooks/useSessionState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { NumericInput } from "@/components/ui/NumericInput";
-import { Select } from "@/components/ui/Select";
+
 import { PyroPickerModal } from "@/components/temperature/PyroPickerModal";
 import type { PyroDataSource } from "@/components/temperature/PyroPickerModal";
 import type {
-  TemperatureRun,
   CornerTemperatureReading,
   Corner,
   FourCornerTemperatureReadings,
 } from "@/lib/domain/models";
-import { createTemperatureRun } from "@/lib/domain/factories";
 import { round } from "@/lib/utils/helpers";
 import { generateId } from "@/lib/utils/helpers";
 import {
@@ -423,9 +420,7 @@ function CornerChart({
 export default function TemperatureAnalysisPage() {
   const { event, updateEvent, settings } = useEventContext();
   const eid = event?.id ?? "__none__";
-  const [selectedGroup, setSelectedGroup] = useSessionState<string>(`temp-group-${eid}`, "all");
   const [comparisonLines, setComparisonLines] = useSessionState<ComparisonLine[]>(`temp-lines-${eid}`, []);
-  const [runsExpanded, setRunsExpanded] = useSessionState(`temp-runsExp-${eid}`, false);
   const [showPyroPicker, setShowPyroPicker] = useState(false);
   const [importedSources, setImportedSources] = useSessionState<DataSource[]>(`temp-imported-${eid}`, []);
 
@@ -577,119 +572,7 @@ export default function TemperatureAnalysisPage() {
     }
   }, [comparisonLines.length]);
 
-  // ── Add new temperature run ──
-  const handleAddRun = () => {
-    if (!event || !event.stints?.length) return;
-    const latestStint = event.stints[event.stints.length - 1];
-    const latestPitstop = latestStint.pitstops?.[latestStint.pitstops.length - 1];
-    const newRun = createTemperatureRun({
-      linkedPitstopId: latestPitstop?.id,
-    });
-    updateEvent({
-      temperatureRuns: [...event.temperatureRuns, newRun],
-    });
-  };
 
-  // ── Update a run ──
-  const handleUpdateRun = (runId: string, updates: Partial<TemperatureRun>) => {
-    if (!event) return;
-    updateEvent({
-      temperatureRuns: event.temperatureRuns.map((r) =>
-        r.id === runId ? { ...r, ...updates } : r
-      ),
-    });
-  };
-
-  // ── Update a corner reading within a run ──
-  const handleUpdateCornerReading = (
-    runId: string,
-    corner: Corner,
-    zone: (typeof ZONES)[number],
-    value: number | undefined
-  ) => {
-    if (!event) return;
-    const run = event.temperatureRuns.find((r) => r.id === runId);
-    if (!run) return;
-
-    const currentReading: CornerTemperatureReading = (run.readings[corner] as CornerTemperatureReading) ?? {
-      inner: 0,
-      middle: 0,
-      outer: 0,
-    };
-
-    handleUpdateRun(runId, {
-      readings: {
-        ...run.readings,
-        [corner]: {
-          ...currentReading,
-          [zone]: value ?? 0,
-        },
-      },
-    });
-  };
-
-  // ── Delete a run ──
-  const handleDeleteRun = (runId: string) => {
-    if (!event) return;
-    updateEvent({
-      temperatureRuns: event.temperatureRuns.filter((r) => r.id !== runId),
-    });
-  };
-
-  // ── Compute averages for runs in selected group ──
-  const groupedAverages = useMemo(() => {
-    if (!event) return null;
-
-    const runs =
-      selectedGroup === "all"
-        ? event.temperatureRuns
-        : event.temperatureRuns.filter(
-            (r) => r.hotPressureGroup === selectedGroup || r.setupTag === selectedGroup
-          );
-
-    if (runs.length === 0) return null;
-
-    const averages: Record<Corner, { inner: number; middle: number; outer: number; avg: number }> = {
-      FL: { inner: 0, middle: 0, outer: 0, avg: 0 },
-      FR: { inner: 0, middle: 0, outer: 0, avg: 0 },
-      RL: { inner: 0, middle: 0, outer: 0, avg: 0 },
-      RR: { inner: 0, middle: 0, outer: 0, avg: 0 },
-    };
-
-    for (const corner of CORNERS) {
-      let count = 0;
-      for (const run of runs) {
-        const reading = run.readings[corner] as CornerTemperatureReading | undefined;
-        if (!reading) continue;
-        averages[corner].inner += reading.inner;
-        averages[corner].middle += reading.middle;
-        averages[corner].outer += reading.outer;
-        count++;
-      }
-      if (count > 0) {
-        averages[corner].inner = round(averages[corner].inner / count, 1);
-        averages[corner].middle = round(averages[corner].middle / count, 1);
-        averages[corner].outer = round(averages[corner].outer / count, 1);
-        averages[corner].avg = round(
-          (averages[corner].inner + averages[corner].middle + averages[corner].outer) / 3,
-          1
-        );
-      }
-    }
-
-    return { averages, runCount: runs.length };
-  }, [event, selectedGroup]);
-
-  // ── Get unique groups for filter ──
-  const groups = useMemo(() => {
-    if (!event) return [];
-    const tags = new Set<string>();
-    for (const r of event.temperatureRuns) {
-      if (r.hotPressureGroup) tags.add(r.hotPressureGroup);
-      if (r.setupTag) tags.add(r.setupTag);
-    }
-    return Array.from(tags);
-  }, [event]);
 
   return (
     <div className="space-y-6">
@@ -699,11 +582,6 @@ export default function TemperatureAnalysisPage() {
           <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
             📂 Load from History
           </Button>
-          {event && (
-            <Button size="sm" onClick={handleAddRun}>
-              + Add Temperature Run
-            </Button>
-          )}
         </div>
       </div>
 
@@ -835,193 +713,7 @@ export default function TemperatureAnalysisPage() {
         </Card>
       )}
 
-      {/* ── Group Filter & Averages ── */}
-      {event && (groups.length > 0 || event.temperatureRuns.length > 0) && (
-        <Card title="Run Averages">
-          <div className="mb-4">
-            <Select
-              label="Group / Filter"
-              value={selectedGroup}
-              onChange={setSelectedGroup}
-              options={[
-                { value: "all", label: "All Runs" },
-                ...groups.map((g) => ({ value: g, label: g })),
-              ]}
-              className="max-w-xs"
-            />
-          </div>
 
-          {groupedAverages ? (
-            <div>
-              <p className="text-xs text-gray-500 mb-3">
-                Averaging {groupedAverages.runCount} run(s) &middot; Spread threshold: {spreadThreshold}°C
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {CORNERS.map((c) => {
-                  const avg = groupedAverages.averages[c];
-                  const camberDelta = round(avg.inner - avg.outer, 1);
-                  const camberLevel = assessCamber(camberDelta, spreadThreshold);
-                  const pressureDelta = round(avg.middle - (avg.inner + avg.outer) / 2, 1);
-                  const pressureLevel = assessPressure(pressureDelta);
-                  return (
-                    <div key={c} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/30">
-                      <div className="text-xs text-gray-400 font-semibold mb-2">
-                        {c}
-                      </div>
-                      <div className="grid grid-cols-3 gap-1 text-xs text-center mb-2">
-                        <div>
-                          <div className="text-gray-500">Inner</div>
-                          <div className="text-gray-200 tabular-nums">
-                            {avg.inner}°
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Mid</div>
-                          <div className="text-gray-200 tabular-nums">
-                            {avg.middle}°
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Outer</div>
-                          <div className="text-gray-200 tabular-nums">
-                            {avg.outer}°
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-center text-sm font-semibold text-[#00d4aa] mb-1">
-                        Avg: {avg.avg}°{settings.unitsTemperature}
-                      </div>
-                      <div className="text-center text-[10px] text-gray-400 mb-1">
-                        Δ Camber: {camberDelta > 0 ? "+" : ""}{camberDelta}°
-                      </div>
-                      <div className="text-center text-[10px] text-gray-400 mb-1">
-                        Δ Pressure: {pressureDelta > 0 ? "+" : ""}{pressureDelta}°
-                      </div>
-                      <div className="flex flex-wrap justify-center gap-1">
-                        <WarningBadge level={camberLevel} label={WARNING_LABELS[camberLevel]} />
-                        <WarningBadge level={pressureLevel} label={WARNING_LABELS[pressureLevel]} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">No data for the selected group.</p>
-          )}
-        </Card>
-      )}
-
-      {/* ── Individual Runs (collapsible) ── */}
-      {event && (
-      <Card
-        title="Temperature Runs"
-        actions={
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setRunsExpanded(!runsExpanded)}>
-              {runsExpanded ? "Collapse" : "Expand"}
-            </Button>
-            <Button size="sm" onClick={handleAddRun}>
-              + Add Run
-            </Button>
-          </div>
-        }
-      >
-        {event.temperatureRuns.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">
-            No temperature runs recorded. Add one to start logging pyrometer / probe readings.
-          </p>
-        ) : !runsExpanded ? (
-          <p className="text-sm text-gray-500">
-            {event.temperatureRuns.length} run(s) recorded. Click &quot;Expand&quot; to view/edit.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {event.temperatureRuns.map((run, idx) => (
-              <div
-                key={run.id}
-                className="p-4 bg-gray-800/40 rounded-lg border border-gray-700/30 space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-gray-200">Run {idx + 1}</h4>
-                  <Button variant="danger" size="sm" onClick={() => handleDeleteRun(run.id)}>
-                    Remove
-                  </Button>
-                </div>
-
-                {/* Tags */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400 font-medium uppercase">Setup Tag</span>
-                    <input
-                      type="text"
-                      value={run.setupTag ?? ""}
-                      onChange={(e) =>
-                        handleUpdateRun(run.id, { setupTag: e.target.value })
-                      }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
-                      placeholder="e.g. Baseline"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400 font-medium uppercase">
-                      Hot Pressure Group
-                    </span>
-                    <input
-                      type="text"
-                      value={run.hotPressureGroup ?? ""}
-                      onChange={(e) =>
-                        handleUpdateRun(run.id, { hotPressureGroup: e.target.value })
-                      }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
-                      placeholder="e.g. 1.85 bar"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400 font-medium uppercase">Notes</span>
-                    <input
-                      type="text"
-                      value={run.notes ?? ""}
-                      onChange={(e) =>
-                        handleUpdateRun(run.id, { notes: e.target.value })
-                      }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
-                      placeholder="Run notes..."
-                    />
-                  </label>
-                </div>
-
-                {/* Temperature readings per corner */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {CORNERS.map((corner) => (
-                    <div key={corner} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/20">
-                      <div className="text-xs text-gray-400 font-semibold mb-2">
-                        {corner}
-                      </div>
-                      <div className="space-y-2">
-                        {ZONES.map((zone) => (
-                          <NumericInput
-                            key={zone}
-                            label={zone.charAt(0).toUpperCase() + zone.slice(1)}
-                            unit={`°${settings.unitsTemperature}`}
-                            value={
-                              (run.readings[corner] as CornerTemperatureReading | undefined)?.[zone]
-                            }
-                            onChange={(v) =>
-                              handleUpdateCornerReading(run.id, corner, zone, v)
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-      )}
 
       {/* ── Pyro Picker Modal ── */}
       <PyroPickerModal
