@@ -19,8 +19,25 @@ export type TargetMode = "single" | "front-rear" | "four-corner";
 /** Canonical corner identifiers */
 export type Corner = "FL" | "FR" | "RL" | "RR";
 
-/** Tire compound types */
-export type CompoundType = "soft" | "medium" | "hard" | "wet" | "custom";
+/** Built-in tire compound types */
+export type CompoundType = "soft" | "medium" | "hard" | "wet";
+
+/** All built-in compound keys */
+export const BUILT_IN_COMPOUNDS: CompoundType[] = ["soft", "medium", "hard", "wet"];
+
+/** Type guard for built-in compound keys */
+export function isBuiltInCompound(s: string): s is CompoundType {
+  return BUILT_IN_COMPOUNDS.includes(s as CompoundType);
+}
+
+/** User-defined custom tire compound */
+export interface CustomCompound {
+  id: string;
+  name: string;
+  kAmbient: number;
+  kTrack: number;
+  minColdPressureBar: number;
+}
 
 /** Per-compound coefficient presets */
 export interface CompoundCoefficients {
@@ -30,7 +47,7 @@ export interface CompoundCoefficients {
   minColdPressureBar: number;
 }
 
-export const COMPOUND_PRESETS: Record<Exclude<CompoundType, "custom">, CompoundCoefficients> = {
+export const COMPOUND_PRESETS: Record<CompoundType, CompoundCoefficients> = {
   soft:   { kAmbient: 1.10, kTrack: 1.90, minColdPressureBar: 1.3 },
   medium: { kAmbient: 1.00, kTrack: 1.75, minColdPressureBar: 1.3 },
   hard:   { kAmbient: 0.90, kTrack: 1.55, minColdPressureBar: 1.3 },
@@ -129,8 +146,8 @@ export interface StintBaseline {
   /** Target hot pressure values */
   targets: Targets;
 
-  /** Tire compound for this stint (affects k_ambient / k_track) */
-  compound?: CompoundType;
+  /** Tire compound key for this stint (built-in name or custom compound ID) */
+  compound?: string;
 
   /** Optional measured/forecast ambient temperature at stint start */
   ambientMeasured?: number;
@@ -291,33 +308,23 @@ export interface AppSettings {
   defaultStartTireTemp: number;
   /** Default target mode for new sessions */
   defaultTargetMode: TargetMode;
-  /** Default compound for new stints */
-  defaultCompound: CompoundType;
+  /** Default compound for new stints (built-in name or custom compound ID) */
+  defaultCompound: string;
 
   /** Whether session-to-session carry-over is active */
   carryOverEnabled: boolean;
   /** Weather provider key */
   weatherProvider: "open-meteo";
 
-  /** Classic Wilkinson mode enabled */
-  classicModeEnabled: boolean;
-  /** Advanced settings visible */
-  advancedModeEnabled: boolean;
-
   // ── Pressure sensitivity coefficient ──
   /** Pressure sensitivity: bar/°C */
   kTemp: number;
 
-  // ── Per-compound coefficients (editable in advanced settings) ──
-  /** Custom compound k_ambient/k_track fallback used when compound = "custom" */
-  kTrack: number;
-  kAmbient: number;
-
   /** User-adjustable per-compound coefficient overrides */
-  compoundCoefficients: Record<Exclude<CompoundType, "custom">, CompoundCoefficients>;
+  compoundCoefficients: Record<CompoundType, CompoundCoefficients>;
 
-  /** Minimum cold pressure threshold for warnings (bar) */
-  minColdPressureBar: number;
+  /** User-defined custom compounds */
+  customCompounds: CustomCompound[];
 
   /** Temperature spread threshold for camber assessment (°C) */
   camberSpreadThreshold: number;
@@ -336,13 +343,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultCompound: "medium",
   carryOverEnabled: true,
   weatherProvider: "open-meteo",
-  classicModeEnabled: true,
-  advancedModeEnabled: false,
   kTemp: 0.0105,
-  kTrack: 1.75,
-  kAmbient: 1.0,
   compoundCoefficients: { ...COMPOUND_PRESETS },
-  minColdPressureBar: 1.3,
+  customCompounds: [],
   camberSpreadThreshold: 12,
   schemaVersion: SCHEMA_VERSION,
   appVersion: APP_VERSION,

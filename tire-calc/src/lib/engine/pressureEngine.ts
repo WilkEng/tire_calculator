@@ -38,6 +38,7 @@ import {
   type Corner,
   type CompoundType,
   type CompoundCoefficients,
+  isBuiltInCompound,
   COMPOUND_PRESETS,
 } from "../domain/models";
 import { round } from "../utils/helpers";
@@ -45,19 +46,46 @@ import { round } from "../utils/helpers";
 // ─── Compound coefficient resolver ─────────────────────────────────
 
 /**
- * Resolve kAmbient and kTrack for a given compound type from settings.
- * Falls back to user-customized presets, then defaults.
+ * Resolve kAmbient and kTrack for a given compound from settings.
+ * Handles built-in compounds, custom user compounds, and fallbacks.
  */
 export function resolveCompoundCoefficients(
-  compound: CompoundType | undefined,
+  compound: string | undefined,
   settings: AppSettings
 ): { kAmbient: number; kTrack: number } {
-  if (!compound || compound === "custom") {
-    return { kAmbient: settings.kAmbient, kTrack: settings.kTrack };
+  if (!compound) {
+    return { kAmbient: COMPOUND_PRESETS.medium.kAmbient, kTrack: COMPOUND_PRESETS.medium.kTrack };
   }
-  const userPresets = settings.compoundCoefficients ?? COMPOUND_PRESETS;
-  const preset = userPresets[compound] ?? COMPOUND_PRESETS[compound];
-  return { kAmbient: preset.kAmbient, kTrack: preset.kTrack };
+  // Built-in compound
+  if (isBuiltInCompound(compound)) {
+    const userPresets = settings.compoundCoefficients ?? COMPOUND_PRESETS;
+    const preset = userPresets[compound] ?? COMPOUND_PRESETS[compound];
+    return { kAmbient: preset.kAmbient, kTrack: preset.kTrack };
+  }
+  // Custom compound (by ID)
+  const custom = settings.customCompounds?.find(c => c.id === compound);
+  if (custom) {
+    return { kAmbient: custom.kAmbient, kTrack: custom.kTrack };
+  }
+  // Fallback to medium defaults
+  return { kAmbient: COMPOUND_PRESETS.medium.kAmbient, kTrack: COMPOUND_PRESETS.medium.kTrack };
+}
+
+/**
+ * Resolve minimum cold pressure threshold for a given compound.
+ */
+export function resolveMinColdPressure(
+  compound: string | undefined,
+  settings: AppSettings
+): number {
+  if (!compound) return 1.3;
+  if (isBuiltInCompound(compound)) {
+    return settings.compoundCoefficients?.[compound]?.minColdPressureBar
+      ?? COMPOUND_PRESETS[compound].minColdPressureBar;
+  }
+  const custom = settings.customCompounds?.find(c => c.id === compound);
+  if (custom) return custom.minColdPressureBar;
+  return 1.3;
 }
 
 // ─── Public types for engine I/O ───────────────────────────────────
@@ -524,7 +552,7 @@ export interface RecommendationInput {
   priorSessions: Session[];
   settings: AppSettings;
   /** Compound type for the next stint — determines kAmbient/kTrack */
-  compound?: CompoundType;
+  compound?: string;
 }
 
 export function computeRecommendation(

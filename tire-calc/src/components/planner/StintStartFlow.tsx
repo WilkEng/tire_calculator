@@ -9,8 +9,9 @@ import type {
   TargetMode,
   Corner,
   Stint,
-  CompoundType,
+  AppSettings,
 } from "@/lib/domain/models";
+import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ interface StintStartFlowProps {
   isFirstStint: boolean;
   /** Whether the baseline was imported (read-only mode) */
   isImported: boolean;
+  /** App settings (for custom compounds) */
+  settings: AppSettings;
   /** Recommended cold pressures from the engine (if available from prior stint) */
   recommendedColdPressures?: { FL?: number; FR?: number; RL?: number; RR?: number };
   /** Current weather conditions (from API/hook) */
@@ -59,6 +62,7 @@ export function StintStartFlow({
   temperatureUnit,
   isFirstStint,
   isImported,
+  settings,
   recommendedColdPressures,
   weatherConditions,
   getForecastAtTime,
@@ -327,13 +331,16 @@ export function StintStartFlow({
               <Select
                 label="Compound"
                 value={baseline.compound ?? "medium"}
-                onChange={(v) => onBaselineUpdate({ compound: v as CompoundType })}
+                onChange={(v) => onBaselineUpdate({ compound: v })}
                 options={[
-                  { value: "soft", label: "Soft" },
-                  { value: "medium", label: "Medium" },
-                  { value: "hard", label: "Hard" },
-                  { value: "wet", label: "Wet" },
-                  { value: "custom", label: "Custom" },
+                  ...BUILT_IN_COMPOUNDS.map((c) => ({
+                    value: c,
+                    label: c.charAt(0).toUpperCase() + c.slice(1),
+                  })),
+                  ...(settings.customCompounds ?? []).map((c) => ({
+                    value: c.id,
+                    label: c.name || `Custom (${c.id.slice(0, 6)})`,
+                  })),
                 ]}
               />
             </div>

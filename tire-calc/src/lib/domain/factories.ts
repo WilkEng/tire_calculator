@@ -10,7 +10,6 @@ import {
   type TargetMode,
   type Targets,
   type WeatherSource,
-  type CompoundType,
   DEFAULT_APP_SETTINGS,
   SCHEMA_VERSION,
   APP_VERSION,
@@ -48,7 +47,7 @@ export function createStint(
   name: string,
   targetMode: TargetMode = "single",
   targets: Targets = {},
-  compound?: CompoundType
+  compound?: string
 ): Stint {
   return {
     id: generateId(),

@@ -9,7 +9,7 @@ import { HourlyForecastCard } from "@/components/dashboard/HourlyForecastCard";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import Link from "next/link";
 import { useMemo } from "react";
-import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
+import { computeRecommendation, resolveMinColdPressure, type RecommendationInput } from "@/lib/engine";
 import type { RecommendationOutput } from "@/lib/domain/models";
 
 export default function DashboardPage() {
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             pressureUnit={settings.unitsPressure}
             temperatureUnit={settings.unitsTemperature}
             conditionsLabel={conditionsLabel}
-            minColdPressureBar={settings.minColdPressureBar ?? 1.3}
+            minColdPressureBar={resolveMinColdPressure(session.stints?.[session.stints.length - 1]?.baseline?.compound, settings)}
             collapsible={true}
             defaultCollapsed={true}
             session={session}

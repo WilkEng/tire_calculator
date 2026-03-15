@@ -4,11 +4,51 @@ import { useSessionContext } from "@/context/SessionContext";
 import { Card } from "@/components/ui/Card";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
-import type { PressureUnit, TemperatureUnit, TargetMode, CompoundType, CompoundCoefficients } from "@/lib/domain/models";
-import { COMPOUND_PRESETS } from "@/lib/domain/models";
+import { Button } from "@/components/ui/Button";
+import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/models";
+import { COMPOUND_PRESETS, BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
+import type { CustomCompound } from "@/lib/domain/models";
+import { generateId } from "@/lib/utils/helpers";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSessionContext();
+
+  // ── Custom compound helpers ──
+  const addCustomCompound = () => {
+    const newCompound: CustomCompound = {
+      id: generateId(),
+      name: "",
+      kAmbient: 1.0,
+      kTrack: 1.75,
+      minColdPressureBar: 1.3,
+    };
+    updateSettings({
+      customCompounds: [...(settings.customCompounds ?? []), newCompound],
+    });
+  };
+
+  const updateCustomCompound = (id: string, updates: Partial<CustomCompound>) => {
+    updateSettings({
+      customCompounds: (settings.customCompounds ?? []).map((c) =>
+        c.id === id ? { ...c, ...updates } : c
+      ),
+    });
+  };
+
+  const deleteCustomCompound = (id: string) => {
+    updateSettings({
+      customCompounds: (settings.customCompounds ?? []).filter((c) => c.id !== id),
+    });
+  };
+
+  // ── Build compound options for default compound selector ──
+  const compoundOptions = [
+    ...BUILT_IN_COMPOUNDS.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
+    ...(settings.customCompounds ?? []).map((c) => ({
+      value: c.id,
+      label: c.name || `Custom (${c.id.slice(0, 6)})`,
+    })),
+  ];
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -88,92 +128,42 @@ export default function SettingsPage() {
         </p>
       </Card>
 
-      {/* ── Compound & Coefficients ── */}
-      <Card title="Compounds & Coefficients">
+      {/* ── Pressure Sensitivity ── */}
+      <Card title="Pressure Sensitivity">
+        <div className="space-y-3">
+          <NumericInput
+            label="k_temp (bar/°C)"
+            value={settings.kTemp}
+            onChange={(v) => updateSettings({ kTemp: v ?? 0.0105 })}
+          />
+          <p className="text-xs text-gray-500">
+            How much cold pressure changes per degree of temperature delta.
+            Higher = more aggressive corrections.
+          </p>
+        </div>
+      </Card>
+
+      {/* ── Compounds ── */}
+      <Card title="Tire Compounds">
         <div className="space-y-5">
-          {/* Classic mode toggles */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={settings.classicModeEnabled}
-                onChange={(e) =>
-                  updateSettings({ classicModeEnabled: e.target.checked })
-                }
-                className="accent-[#00d4aa] w-4 h-4"
-              />
-              <span className="text-gray-200">Enable classic Wilkinson mode as baseline</span>
-            </label>
-
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={settings.advancedModeEnabled}
-                onChange={(e) =>
-                  updateSettings({ advancedModeEnabled: e.target.checked })
-                }
-                className="accent-[#00d4aa] w-4 h-4"
-              />
-              <span className="text-gray-200">Show advanced coefficient settings</span>
-            </label>
-          </div>
-
-          {/* Global coefficients (advanced) */}
-          {settings.advancedModeEnabled && (
-            <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/40 space-y-3">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">
-                Global Coefficients (used when compound = Custom)
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <NumericInput
-                  label="k_temp (bar/°C)"
-                  value={settings.kTemp}
-                  onChange={(v) => updateSettings({ kTemp: v ?? 0.012 })}
-                />
-                <NumericInput
-                  label="k_track (asphalt wt)"
-                  value={settings.kTrack}
-                  onChange={(v) => updateSettings({ kTrack: v ?? 1.75 })}
-                />
-                <NumericInput
-                  label="k_ambient (ambient wt)"
-                  value={settings.kAmbient}
-                  onChange={(v) => updateSettings({ kAmbient: v ?? 1.0 })}
-                />
-              </div>
-              <p className="text-[10px] text-gray-500">
-                effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt × k_track) + (ΔStartTire × 1.0)
-                &middot; conditionCorrection = effectiveTempDelta × k_temp
-              </p>
-            </div>
-          )}
-
-          {/* Default compound */}
+          {/* Default compound selector */}
           <Select
             label="Default Compound"
             value={settings.defaultCompound ?? "medium"}
-            onChange={(v) =>
-              updateSettings({ defaultCompound: v as CompoundType })
-            }
-            options={[
-              { value: "soft", label: "Soft" },
-              { value: "medium", label: "Medium" },
-              { value: "hard", label: "Hard" },
-              { value: "wet", label: "Wet" },
-              { value: "custom", label: "Custom (use global k values)" },
-            ]}
+            onChange={(v) => updateSettings({ defaultCompound: v })}
+            options={compoundOptions}
           />
 
-          {/* Per-compound settings */}
+          {/* Built-in compound settings */}
           <div className="space-y-2">
             <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">
-              Per-Compound Coefficients &amp; Thresholds
+              Built-in Compounds
             </div>
             <p className="text-xs text-gray-500 mb-2">
-              Each compound has its own k_ambient, k_track, and minimum cold pressure threshold.
+              Each compound has its own k_ambient, k_track, and minimum cold pressure.
             </p>
 
-            {(["soft", "medium", "hard", "wet"] as const).map((cmp) => {
+            {BUILT_IN_COMPOUNDS.map((cmp) => {
               const userCoeffs = settings.compoundCoefficients?.[cmp];
               const defaults = COMPOUND_PRESETS[cmp];
               const kAmb = userCoeffs?.kAmbient ?? defaults.kAmbient;
@@ -182,82 +172,137 @@ export default function SettingsPage() {
               return (
                 <div
                   key={cmp}
-                  className="grid grid-cols-[80px_1fr_1fr_1fr_auto] gap-2 items-end p-3 bg-gray-800/60 rounded-lg border border-gray-700/30"
+                  className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/30 space-y-3"
                 >
-                  <span className="text-sm font-medium text-gray-200 capitalize pb-1">
-                    {cmp}
-                  </span>
-                  <NumericInput
-                    label="k_ambient"
-                    value={kAmb}
-                    onChange={(v) => {
-                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
-                      updateSettings({
-                        compoundCoefficients: {
-                          ...prev,
-                          [cmp]: { ...prev[cmp], kAmbient: v ?? defaults.kAmbient },
-                        },
-                      });
-                    }}
-                  />
-                  <NumericInput
-                    label="k_track"
-                    value={kTrk}
-                    onChange={(v) => {
-                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
-                      updateSettings({
-                        compoundCoefficients: {
-                          ...prev,
-                          [cmp]: { ...prev[cmp], kTrack: v ?? defaults.kTrack },
-                        },
-                      });
-                    }}
-                  />
-                  <NumericInput
-                    label="Min Cold (bar)"
-                    value={minP}
-                    onChange={(v) => {
-                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
-                      updateSettings({
-                        compoundCoefficients: {
-                          ...prev,
-                          [cmp]: { ...prev[cmp], minColdPressureBar: v ?? defaults.minColdPressureBar },
-                        },
-                      });
-                    }}
-                  />
-                  <button
-                    className="text-xs text-gray-500 hover:text-gray-300 pb-1"
-                    onClick={() => {
-                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
-                      updateSettings({
-                        compoundCoefficients: {
-                          ...prev,
-                          [cmp]: { ...COMPOUND_PRESETS[cmp] },
-                        },
-                      });
-                    }}
-                    title="Reset to default"
-                  >
-                    ↺
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-200 capitalize">
+                      {cmp}
+                    </span>
+                    <button
+                      className="text-xs text-gray-500 hover:text-gray-300"
+                      onClick={() => {
+                        const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                        updateSettings({
+                          compoundCoefficients: {
+                            ...prev,
+                            [cmp]: { ...COMPOUND_PRESETS[cmp] },
+                          },
+                        });
+                      }}
+                      title="Reset to default"
+                    >
+                      ↺ Reset
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <NumericInput
+                      label="k_ambient"
+                      value={kAmb}
+                      onChange={(v) => {
+                        const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                        updateSettings({
+                          compoundCoefficients: {
+                            ...prev,
+                            [cmp]: { ...prev[cmp], kAmbient: v ?? defaults.kAmbient },
+                          },
+                        });
+                      }}
+                    />
+                    <NumericInput
+                      label="k_track"
+                      value={kTrk}
+                      onChange={(v) => {
+                        const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                        updateSettings({
+                          compoundCoefficients: {
+                            ...prev,
+                            [cmp]: { ...prev[cmp], kTrack: v ?? defaults.kTrack },
+                          },
+                        });
+                      }}
+                    />
+                    <NumericInput
+                      label="Min Cold Pressure (bar)"
+                      value={minP}
+                      onChange={(v) => {
+                        const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                        updateSettings({
+                          compoundCoefficients: {
+                            ...prev,
+                            [cmp]: { ...prev[cmp], minColdPressureBar: v ?? defaults.minColdPressureBar },
+                          },
+                        });
+                      }}
+                    />
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Global fallback min pressure */}
-          <div className="pt-3 border-t border-gray-700/40">
-            <NumericInput
-              label="Global Min Cold Pressure Fallback (bar)"
-              value={settings.minColdPressureBar ?? 1.3}
-              onChange={(v) =>
-                updateSettings({ minColdPressureBar: v ?? 1.3 })
-              }
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Used when no compound-specific threshold is set. Cold pressures below this are highlighted in red.
+          {/* Custom compounds */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">
+                Custom Compounds
+              </div>
+              <Button variant="secondary" size="sm" onClick={addCustomCompound}>
+                + Add Compound
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Define custom tire compounds with their own K values and min cold pressure.
             </p>
+
+            {(settings.customCompounds ?? []).length === 0 ? (
+              <p className="text-xs text-gray-500 italic py-2">
+                No custom compounds defined. Click &ldquo;+ Add Compound&rdquo; to create one.
+              </p>
+            ) : (
+              (settings.customCompounds ?? []).map((cc) => (
+                <div
+                  key={cc.id}
+                  className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/30 space-y-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-400 uppercase font-medium">Name</span>
+                      <input
+                        type="text"
+                        value={cc.name}
+                        onChange={(e) => updateCustomCompound(cc.id, { name: e.target.value })}
+                        placeholder="e.g. Supersoft, Inter, Rain..."
+                        className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
+                      />
+                    </label>
+                    <button
+                      className="text-xs text-red-400 hover:text-red-300 mt-4 px-2"
+                      onClick={() => deleteCustomCompound(cc.id)}
+                      title="Delete compound"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <NumericInput
+                      label="k_ambient"
+                      value={cc.kAmbient}
+                      onChange={(v) => updateCustomCompound(cc.id, { kAmbient: v ?? 1.0 })}
+                    />
+                    <NumericInput
+                      label="k_track"
+                      value={cc.kTrack}
+                      onChange={(v) => updateCustomCompound(cc.id, { kTrack: v ?? 1.75 })}
+                    />
+                    <NumericInput
+                      label="Min Cold Pressure (bar)"
+                      value={cc.minColdPressureBar}
+                      onChange={(v) => updateCustomCompound(cc.id, { minColdPressureBar: v ?? 1.3 })}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Camber spread threshold */}

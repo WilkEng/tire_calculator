@@ -96,7 +96,7 @@ export default function HistoryPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 justify-center">
-                    <Link href="/dashboard">
+                    <Link href="/planner">
                       <Button
                         className="w-full"
                         onClick={() => handleLoadSession(s)}

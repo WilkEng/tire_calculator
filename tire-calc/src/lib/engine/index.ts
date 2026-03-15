@@ -9,6 +9,7 @@ export {
   expandTargets,
   getEffectiveTargetPerCorner,
   resolveCompoundCoefficients,
+  resolveMinColdPressure,
 } from "./pressureEngine";
 
 export type {

@@ -16,6 +16,7 @@ import type {
 } from "@/lib/domain/models";
 import { createTemperatureRun } from "@/lib/domain/factories";
 import { round } from "@/lib/utils/helpers";
+import { generateId } from "@/lib/utils/helpers";
 import {
   LineChart,
   Line,
@@ -40,9 +41,7 @@ const ZONES = ["inner", "middle", "outer"] as const;
 /**
  * Zone ordering per corner — from CENTER of car outward.
  * Left-side tires (FL, RL): the "inside" faces car center, so graph reads Outside → Middle → Inside
- *   (left edge of chart = outside of tire = leftmost on vehicle, right edge = inside = towards center)
  * Right-side tires (FR, RR): the "inside" faces car center, so graph reads Inside → Middle → Outside
- *   (left edge = inside = towards center, right edge = outside of tire = rightmost on vehicle)
  */
 const ZONE_ORDER: Record<Corner, readonly (keyof CornerTemperatureReading)[]> = {
   FL: ["outer", "middle", "inner"],
@@ -86,13 +85,6 @@ const WARNING_LABELS: Record<WarningLevel | PressureWarning, string> = {
   too_low: "Pressure too low",
 };
 
-/**
- * Assess camber based on configurable spread threshold.
- * The spread is divided into thirds:
- *   ≤ threshold/3 → perfect
- *   ≤ 2*threshold/3 → slight
- *   > 2*threshold/3 → warning
- */
 function assessCamber(camberDelta: number, spreadThreshold: number): WarningLevel {
   const abs = Math.abs(camberDelta);
   const third = spreadThreshold / 3;
@@ -120,12 +112,90 @@ interface DataSource {
   notes?: string;
 }
 
-// ─── Line colors for data sources ──────────────────────────────────
+// ─── Comparison line type ──────────────────────────────────────────
+
+interface ComparisonLine {
+  id: string;
+  name: string;
+  sourceIds: string[];
+  color: string;
+}
+
+// ─── Line colors ───────────────────────────────────────────────────
 
 const LINE_PALETTE = [
   "#00d4aa", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
   "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
 ];
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+/** Average readings from multiple sources for a given corner */
+function averageCornerReadings(
+  sources: DataSource[],
+  corner: Corner
+): CornerTemperatureReading | null {
+  let count = 0;
+  let sumI = 0, sumM = 0, sumO = 0;
+  for (const src of sources) {
+    const r = src.readings[corner];
+    if (!r) continue;
+    sumI += r.inner;
+    sumM += r.middle;
+    sumO += r.outer;
+    count++;
+  }
+  if (count === 0) return null;
+  return {
+    inner: round(sumI / count, 1),
+    middle: round(sumM / count, 1),
+    outer: round(sumO / count, 1),
+  };
+}
+
+// ─── Resolved line (with computed readings) ────────────────────────
+
+interface ResolvedLine {
+  id: string;
+  name: string;
+  color: string;
+  isAveraged: boolean;
+  /** The resolved reading per corner (either from single source or averaged) */
+  readings: Partial<Record<Corner, CornerTemperatureReading>>;
+  /** Notes from sources */
+  notes?: string;
+}
+
+function resolveLines(
+  lines: ComparisonLine[],
+  allSources: DataSource[]
+): ResolvedLine[] {
+  return lines.map((line) => {
+    const sources = allSources.filter((s) => line.sourceIds.includes(s.id));
+    const isAveraged = sources.length > 1;
+    const readings: Partial<Record<Corner, CornerTemperatureReading>> = {};
+
+    for (const corner of CORNERS) {
+      if (isAveraged) {
+        const avg = averageCornerReadings(sources, corner);
+        if (avg) readings[corner] = avg;
+      } else if (sources.length === 1) {
+        const r = sources[0].readings[corner];
+        if (r) readings[corner] = r;
+      }
+    }
+
+    const notesList = sources.filter((s) => s.notes).map((s) => s.notes!);
+    return {
+      id: line.id,
+      name: line.name,
+      color: line.color,
+      isAveraged,
+      readings,
+      notes: notesList.length > 0 ? notesList.join("; ") : undefined,
+    };
+  });
+}
 
 // ─── Chart tooltip ─────────────────────────────────────────────────
 
@@ -145,17 +215,12 @@ function ChartTooltip({
   return (
     <div className="bg-gray-900/95 border border-gray-700 rounded px-3 py-2 shadow-lg text-xs max-w-xs">
       <p className="text-gray-400 font-medium mb-1">{label}</p>
-      {payload.map((entry: { name: string; value: number; color: string; payload?: { notes?: Record<string, string> } }, i: number) => (
+      {payload.map((entry: { name: string; value: number; color: string }, i: number) => (
         <div key={i}>
           <p className="flex items-center gap-2" style={{ color: entry.color }}>
             <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
             {entry.name}: {entry.value?.toFixed(1)}°{unit}
           </p>
-          {entry.payload?.notes?.[entry.name] && (
-            <p className="text-gray-500 ml-4 italic text-[10px]">
-              {entry.payload.notes[entry.name]}
-            </p>
-          )}
         </div>
       ))}
     </div>
@@ -176,84 +241,67 @@ function WarningBadge({ level, label }: { level: WarningLevel | PressureWarning;
   );
 }
 
-// ─── Corner Chart Component (Line Chart) ───────────────────────────
+// ─── Corner Chart Component (Line-based) ───────────────────────────
 
 function CornerChart({
   corner,
-  sources,
-  averagedReading,
+  resolvedLines,
   unit,
   spreadThreshold,
 }: {
   corner: Corner;
-  sources: DataSource[];
-  averagedReading: CornerTemperatureReading | null;
+  resolvedLines: ResolvedLine[];
   unit: string;
   spreadThreshold: number;
 }) {
   const zoneOrder = ZONE_ORDER[corner];
 
-  // Build chart data: x-axis = zone positions, each source is a separate line
-  // Each data point: { zone: "Outside", "Run 1": 95, "Run 2": 88, "Average": 91, notes: { "Run 1": "some note" } }
+  // Build chart data: each resolved line becomes a line on the chart
   const { chartData, lineKeys } = useMemo(() => {
-    const allSources = [...sources];
-    if (averagedReading) {
-      allSources.push({
-        id: "__avg__",
-        label: "Average",
-        type: "run",
-        readings: { [corner]: averagedReading },
-      });
-    }
-
-    const keys: { key: string; color: string; isDashed: boolean; notes?: string }[] = [];
-    for (let i = 0; i < allSources.length; i++) {
-      const src = allSources[i];
+    const keys: { key: string; color: string; isDashed: boolean }[] = [];
+    for (const rl of resolvedLines) {
       keys.push({
-        key: src.label,
-        color: src.id === "__avg__" ? "#ffffff" : LINE_PALETTE[i % LINE_PALETTE.length],
-        isDashed: src.id === "__avg__",
-        notes: src.notes,
+        key: rl.name,
+        color: rl.color,
+        isDashed: rl.isAveraged,
       });
     }
 
     const data = zoneOrder.map((zone) => {
       const point: Record<string, unknown> = { zone: ZONE_LABELS[zone] };
-      const notesMap: Record<string, string> = {};
-      for (const src of allSources) {
-        const r = src.readings[corner];
+      for (const rl of resolvedLines) {
+        const r = rl.readings[corner];
         if (r) {
-          point[src.label] = r[zone];
-        }
-        if (src.notes) {
-          notesMap[src.label] = src.notes;
+          point[rl.name] = r[zone];
         }
       }
-      point.notes = notesMap;
       return point;
     });
 
     return { chartData: data, lineKeys: keys };
-  }, [sources, averagedReading, corner, zoneOrder]);
+  }, [resolvedLines, corner, zoneOrder]);
 
-  // Compute derived metrics
-  const metrics = useMemo(() => {
-    const reading = averagedReading ?? (sources.length === 1 ? sources[0]?.readings[corner] : null);
-    if (!reading) return null;
-
-    const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
-    const camberDelta = round(reading.inner - reading.outer, 1);
-    const camberWarning = assessCamber(camberDelta, spreadThreshold);
-    const pressureWarning = assessPressure(avg, 85);
-
-    return { avg, camberDelta, camberWarning, pressureWarning };
-  }, [averagedReading, sources, corner, spreadThreshold]);
+  // Compute metrics/warnings PER LINE
+  const lineMetrics = useMemo(() => {
+    return resolvedLines.map((rl) => {
+      const reading = rl.readings[corner];
+      if (!reading) return null;
+      const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
+      const camberDelta = round(reading.inner - reading.outer, 1);
+      const camberWarning = assessCamber(camberDelta, spreadThreshold);
+      const pressureWarning = assessPressure(avg, 85);
+      return { lineName: rl.name, color: rl.color, avg, camberDelta, camberWarning, pressureWarning };
+    }).filter(Boolean) as {
+      lineName: string; color: string; avg: number; camberDelta: number;
+      camberWarning: WarningLevel; pressureWarning: PressureWarning;
+    }[];
+  }, [resolvedLines, corner, spreadThreshold]);
 
   if (lineKeys.length === 0) {
     return (
       <Card title={`${CORNER_LABELS[corner]} (${corner})`}>
         <div className="text-sm text-gray-500 text-center py-8">
-          No data selected for this corner
+          No data for this corner
         </div>
       </Card>
     );
@@ -282,14 +330,6 @@ function CornerChart({
                 wrapperStyle={{ fontSize: 10, color: "#9ca3af" }}
                 iconSize={8}
               />
-              {metrics && (
-                <ReferenceLine
-                  y={metrics.avg}
-                  stroke="#6b728055"
-                  strokeDasharray="3 3"
-                  label={{ value: `Avg ${metrics.avg}°`, position: "right", fill: "#6b7280", fontSize: 9 }}
-                />
-              )}
               {lineKeys.map((lk) => (
                 <Line
                   key={lk.key}
@@ -307,40 +347,35 @@ function CornerChart({
           </ResponsiveContainer>
         </div>
 
-        {/* Notes legend */}
-        {sources.some((s) => s.notes) && (
-          <div className="space-y-0.5 pt-1 border-t border-gray-700/30">
-            {sources.filter((s) => s.notes).map((s, i) => (
-              <p key={s.id} className="text-[10px] text-gray-500 flex items-center gap-1.5">
-                <span
-                  className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: LINE_PALETTE[sources.indexOf(s) % LINE_PALETTE.length] }}
-                />
-                <span className="italic truncate">{s.notes}</span>
-              </p>
+        {/* Per-line Metrics & Warnings */}
+        {lineMetrics.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-gray-700/40">
+            {lineMetrics.map((m) => (
+              <div key={m.lineName} className="space-y-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+                  <span className="text-xs font-medium text-gray-300">{m.lineName}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pl-4">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase">Avg Temp</div>
+                    <div className="text-sm font-semibold text-gray-200 tabular-nums">
+                      {m.avg}°{unit}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase">Δ Camber (In−Out)</div>
+                    <div className="text-sm font-semibold text-gray-200 tabular-nums">
+                      {m.camberDelta > 0 ? "+" : ""}{m.camberDelta}°{unit}
+                    </div>
+                  </div>
+                  <div className="col-span-2 flex flex-wrap gap-2">
+                    <WarningBadge level={m.camberWarning} label={WARNING_LABELS[m.camberWarning]} />
+                    <WarningBadge level={m.pressureWarning} label={WARNING_LABELS[m.pressureWarning]} />
+                  </div>
+                </div>
+              </div>
             ))}
-          </div>
-        )}
-
-        {/* Metrics & Warnings */}
-        {metrics && (
-          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-700/40">
-            <div>
-              <div className="text-[10px] text-gray-500 uppercase">Avg Temp</div>
-              <div className="text-sm font-semibold text-gray-200 tabular-nums">
-                {metrics.avg}°{unit}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-gray-500 uppercase">Δ Camber (In−Out)</div>
-              <div className="text-sm font-semibold text-gray-200 tabular-nums">
-                {metrics.camberDelta > 0 ? "+" : ""}{metrics.camberDelta}°{unit}
-              </div>
-            </div>
-            <div className="col-span-2 flex flex-wrap gap-2">
-              <WarningBadge level={metrics.camberWarning} label={WARNING_LABELS[metrics.camberWarning]} />
-              <WarningBadge level={metrics.pressureWarning} label={WARNING_LABELS[metrics.pressureWarning]} />
-            </div>
           </div>
         )}
       </div>
@@ -355,8 +390,7 @@ function CornerChart({
 export default function TemperatureAnalysisPage() {
   const { session, updateSession, settings } = useSessionContext();
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
-  const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
-  const [showAverage, setShowAverage] = useState(true);
+  const [comparisonLines, setComparisonLines] = useState<ComparisonLine[]>([]);
   const [runsExpanded, setRunsExpanded] = useState(false);
   const [showPyroPicker, setShowPyroPicker] = useState(false);
   const [importedSources, setImportedSources] = useState<DataSource[]>([]);
@@ -407,66 +441,88 @@ export default function TemperatureAnalysisPage() {
     return sources;
   }, [session, importedSources]);
 
-  // ── Selected sources ──
-  const selectedSources = useMemo(
-    () => dataSources.filter((s) => selectedSourceIds.has(s.id)),
-    [dataSources, selectedSourceIds]
+  // ── Resolve comparison lines ──
+  const resolvedLines = useMemo(
+    () => resolveLines(comparisonLines, dataSources),
+    [comparisonLines, dataSources]
   );
 
-  // ── Computed averages across selected sources ──
-  const averagedReadings = useMemo(() => {
-    if (selectedSources.length < 2 || !showAverage) return null;
+  // ── Line management ──
+  const addLine = useCallback(() => {
+    const idx = comparisonLines.length;
+    setComparisonLines((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        name: `Line ${idx + 1}`,
+        sourceIds: [],
+        color: LINE_PALETTE[idx % LINE_PALETTE.length],
+      },
+    ]);
+  }, [comparisonLines.length]);
 
-    const result: Record<Corner, CornerTemperatureReading | null> = {
-      FL: null, FR: null, RL: null, RR: null,
-    };
-
-    for (const corner of CORNERS) {
-      let count = 0;
-      let sumI = 0, sumM = 0, sumO = 0;
-
-      for (const src of selectedSources) {
-        const r = src.readings[corner];
-        if (!r) continue;
-        sumI += r.inner;
-        sumM += r.middle;
-        sumO += r.outer;
-        count++;
-      }
-
-      if (count > 0) {
-        result[corner] = {
-          inner: round(sumI / count, 1),
-          middle: round(sumM / count, 1),
-          outer: round(sumO / count, 1),
-        };
-      }
-    }
-
-    return result;
-  }, [selectedSources, showAverage]);
-
-  // ── Toggle source selection ──
-  const toggleSource = useCallback((id: string) => {
-    setSelectedSourceIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const removeLine = useCallback((lineId: string) => {
+    setComparisonLines((prev) => prev.filter((l) => l.id !== lineId));
   }, []);
 
-  const selectAll = useCallback(() => {
-    setSelectedSourceIds(new Set(dataSources.map((s) => s.id)));
+  const updateLineName = useCallback((lineId: string, name: string) => {
+    setComparisonLines((prev) =>
+      prev.map((l) => (l.id === lineId ? { ...l, name } : l))
+    );
+  }, []);
+
+  const toggleSourceInLine = useCallback((lineId: string, sourceId: string) => {
+    setComparisonLines((prev) =>
+      prev.map((l) => {
+        if (l.id !== lineId) return l;
+        const has = l.sourceIds.includes(sourceId);
+        return {
+          ...l,
+          sourceIds: has
+            ? l.sourceIds.filter((id) => id !== sourceId)
+            : [...l.sourceIds, sourceId],
+        };
+      })
+    );
+  }, []);
+
+  /** Quick-add: create one line per source (individual lines) */
+  const addIndividualLines = useCallback(() => {
+    const existing = new Set(comparisonLines.flatMap((l) => l.sourceIds));
+    const newLines: ComparisonLine[] = [];
+    for (const src of dataSources) {
+      if (existing.has(src.id)) continue;
+      newLines.push({
+        id: generateId(),
+        name: src.label,
+        sourceIds: [src.id],
+        color: LINE_PALETTE[(comparisonLines.length + newLines.length) % LINE_PALETTE.length],
+      });
+    }
+    if (newLines.length > 0) {
+      setComparisonLines((prev) => [...prev, ...newLines]);
+    }
+  }, [comparisonLines, dataSources]);
+
+  /** Quick-add: create one averaged line from all sources */
+  const addAverageLine = useCallback(() => {
+    setComparisonLines((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        name: "Average (All)",
+        sourceIds: dataSources.map((s) => s.id),
+        color: LINE_PALETTE[prev.length % LINE_PALETTE.length],
+      },
+    ]);
   }, [dataSources]);
 
-  const selectNone = useCallback(() => {
-    setSelectedSourceIds(new Set());
+  const clearLines = useCallback(() => {
+    setComparisonLines([]);
   }, []);
 
   // ── Handle imported pyro sources from picker ──
   const handleImportPyroSources = useCallback((sources: PyroDataSource[]) => {
-    // Convert to DataSource format, prefixing labels with session context
     const imported: DataSource[] = sources.map((s) => ({
       id: s.id,
       label: `${s.sessionName} › ${s.label}`,
@@ -475,13 +531,17 @@ export default function TemperatureAnalysisPage() {
       notes: s.notes,
     }));
     setImportedSources(imported);
-    // Auto-select the imported sources
-    setSelectedSourceIds((prev) => {
-      const next = new Set(prev);
-      for (const src of imported) next.add(src.id);
-      return next;
-    });
-  }, []);
+    // Auto-create individual lines for imported sources
+    const newLines: ComparisonLine[] = imported.map((src, i) => ({
+      id: generateId(),
+      name: src.label,
+      sourceIds: [src.id],
+      color: LINE_PALETTE[(comparisonLines.length + i) % LINE_PALETTE.length],
+    }));
+    if (newLines.length > 0) {
+      setComparisonLines((prev) => [...prev, ...newLines]);
+    }
+  }, [comparisonLines.length]);
 
   // ── Add new temperature run ──
   const handleAddRun = () => {
@@ -625,84 +685,125 @@ export default function TemperatureAnalysisPage() {
         Probe / pyrometer data is for analysis only. It is not used in the Level 1 pressure recommendation engine.
       </div>
 
-      {/* ── Data Source Selector & Comparison Charts ── */}
+      {/* ── Comparison Lines & Charts ── */}
       {(dataSources.length > 0 || importedSources.length > 0) && (
         <Card title="Comparison Charts">
           <div className="space-y-4">
-            {/* Source selector */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-gray-400 uppercase font-medium">Select Readings to Compare</span>
-                <div className="flex gap-2 items-center">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowPyroPicker(true)}
-                  >
-                    📂 Load from History
-                  </Button>
-                  <button onClick={selectAll} className="text-[10px] text-[#00d4aa] hover:text-[#00d4aa]/80">
-                    Select all
-                  </button>
-                  <button onClick={selectNone} className="text-[10px] text-gray-500 hover:text-gray-300">
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {dataSources.map((src) => {
-                  const active = selectedSourceIds.has(src.id);
-                  return (
-                    <button
-                      key={src.id}
-                      onClick={() => toggleSource(src.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                        active
-                          ? "bg-[#00d4aa]/15 border-[#00d4aa]/50 text-[#00d4aa]"
-                          : "bg-gray-800/50 border-gray-700/40 text-gray-400 hover:border-gray-600"
-                      }`}
-                    >
-                      {src.type === "pitstop" ? "🏁 " : "🌡 "}
-                      {src.label}
-                      {src.notes && <span className="ml-1 text-gray-500">📝</span>}
-                    </button>
-                  );
-                })}
+            {/* Line management header */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 uppercase font-medium">Comparison Lines</span>
+              <div className="flex gap-2 items-center">
+                <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
+                  📂 History
+                </Button>
+                <button onClick={addIndividualLines} className="text-[10px] text-[#00d4aa] hover:text-[#00d4aa]/80">
+                  + All Individual
+                </button>
+                <button onClick={addAverageLine} className="text-[10px] text-[#00d4aa] hover:text-[#00d4aa]/80">
+                  + Average All
+                </button>
+                <button onClick={clearLines} className="text-[10px] text-gray-500 hover:text-gray-300">
+                  Clear
+                </button>
               </div>
             </div>
 
-            {/* Average toggle */}
-            {selectedSources.length >= 2 && (
-              <label className="flex items-center gap-2 text-sm text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={showAverage}
-                  onChange={(e) => setShowAverage(e.target.checked)}
-                  className="accent-[#00d4aa] w-4 h-4"
-                />
-                Show combined average
-              </label>
+            {/* Add line button */}
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={addLine}>
+                + Add Line
+              </Button>
+            </div>
+
+            {/* Line list */}
+            {comparisonLines.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Add a comparison line to start. Each line can include one source (individual) or multiple sources (averaged).
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {comparisonLines.map((line) => {
+                  const sourceCount = line.sourceIds.length;
+                  return (
+                    <div
+                      key={line.id}
+                      className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/30 space-y-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* Color chip */}
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: line.color }}
+                        />
+                        {/* Editable name */}
+                        <input
+                          type="text"
+                          value={line.name}
+                          onChange={(e) => updateLineName(line.id, e.target.value)}
+                          className="flex-1 bg-transparent border-b border-gray-700 text-sm text-gray-200 focus:outline-none focus:border-[#00d4aa] py-0.5 px-1"
+                        />
+                        {/* Info badge */}
+                        <span className="text-[10px] text-gray-500">
+                          {sourceCount === 0
+                            ? "No sources"
+                            : sourceCount === 1
+                            ? "Individual"
+                            : `Averaged (${sourceCount})`}
+                        </span>
+                        {/* Delete */}
+                        <button
+                          onClick={() => removeLine(line.id)}
+                          className="text-xs text-red-400 hover:text-red-300 px-1"
+                          title="Remove line"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Source selector chips */}
+                      <div className="flex flex-wrap gap-1.5 pl-5">
+                        {dataSources.map((src) => {
+                          const active = line.sourceIds.includes(src.id);
+                          return (
+                            <button
+                              key={src.id}
+                              onClick={() => toggleSourceInLine(line.id, src.id)}
+                              className={`px-2 py-1 rounded text-[10px] font-medium border transition-all ${
+                                active
+                                  ? "bg-[#00d4aa]/15 border-[#00d4aa]/50 text-[#00d4aa]"
+                                  : "bg-gray-800/50 border-gray-700/40 text-gray-500 hover:border-gray-600 hover:text-gray-400"
+                              }`}
+                            >
+                              {src.type === "pitstop" ? "🏁 " : "🌡 "}
+                              {src.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {/* 4-corner line charts in 2×2 grid */}
-            {selectedSources.length > 0 ? (
+            {resolvedLines.length > 0 && resolvedLines.some((rl) => Object.keys(rl.readings).length > 0) ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {CORNERS.map((corner) => (
                   <CornerChart
                     key={corner}
                     corner={corner}
-                    sources={selectedSources}
-                    averagedReading={averagedReadings?.[corner] ?? null}
+                    resolvedLines={resolvedLines}
                     unit={settings.unitsTemperature}
                     spreadThreshold={spreadThreshold}
                   />
                 ))}
               </div>
-            ) : (
+            ) : comparisonLines.length > 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">
-                Select one or more readings above to see comparison charts.
+                Select sources for your comparison lines to see charts.
               </p>
-            )}
+            ) : null}
           </div>
         </Card>
       )}

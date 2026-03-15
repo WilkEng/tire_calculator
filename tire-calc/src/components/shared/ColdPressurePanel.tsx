@@ -7,7 +7,6 @@ import type {
   PartialCornerValues,
   AppSettings,
   Session,
-  CompoundType,
 } from "@/lib/domain/models";
 import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
 import { NumericInput } from "@/components/ui/NumericInput";
