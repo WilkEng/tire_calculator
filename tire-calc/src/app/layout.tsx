@@ -17,6 +17,10 @@ export const metadata: Metadata = {
   title: "Tire Calc – Race Pressure Planner",
   description:
     "Local-first race engineering app for tire pressure calculation and event management.",
+  icons: {
+    icon: "/tire_calculator/icon-512.png",
+    apple: "/tire_calculator/icon-512.png",
+  },
 };
 
 export default function RootLayout({
