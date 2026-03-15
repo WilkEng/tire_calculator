@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
+import { PyroPickerModal } from "@/components/temperature/PyroPickerModal";
+import type { PyroDataSource } from "@/components/temperature/PyroPickerModal";
 import type {
   TemperatureRun,
   CornerTemperatureReading,
@@ -356,15 +358,17 @@ export default function TemperatureAnalysisPage() {
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [showAverage, setShowAverage] = useState(true);
   const [runsExpanded, setRunsExpanded] = useState(false);
+  const [showPyroPicker, setShowPyroPicker] = useState(false);
+  const [importedSources, setImportedSources] = useState<DataSource[]>([]);
 
   const spreadThreshold = settings.camberSpreadThreshold ?? 12;
 
-  // ── Build all available data sources ──
+  // ── Build all available data sources (current session + imported) ──
   const dataSources: DataSource[] = useMemo(() => {
     if (!session) return [];
     const sources: DataSource[] = [];
 
-    // Temperature runs
+    // Temperature runs from current session
     for (let i = 0; i < session.temperatureRuns.length; i++) {
       const run = session.temperatureRuns[i];
       sources.push({
@@ -376,7 +380,7 @@ export default function TemperatureAnalysisPage() {
       });
     }
 
-    // Pitstops with temperature readings
+    // Pitstops with temperature readings from current session
     for (const stint of session.stints) {
       for (const pit of stint.pitstops) {
         if (pit.temperatureReadings && Object.keys(pit.temperatureReadings).length > 0) {
@@ -397,8 +401,11 @@ export default function TemperatureAnalysisPage() {
       }
     }
 
+    // Add imported sources (from other sessions via picker)
+    sources.push(...importedSources);
+
     return sources;
-  }, [session]);
+  }, [session, importedSources]);
 
   // ── Selected sources ──
   const selectedSources = useMemo(
@@ -455,6 +462,25 @@ export default function TemperatureAnalysisPage() {
 
   const selectNone = useCallback(() => {
     setSelectedSourceIds(new Set());
+  }, []);
+
+  // ── Handle imported pyro sources from picker ──
+  const handleImportPyroSources = useCallback((sources: PyroDataSource[]) => {
+    // Convert to DataSource format, prefixing labels with session context
+    const imported: DataSource[] = sources.map((s) => ({
+      id: s.id,
+      label: `${s.sessionName} › ${s.label}`,
+      type: s.type,
+      readings: s.readings,
+      notes: s.notes,
+    }));
+    setImportedSources(imported);
+    // Auto-select the imported sources
+    setSelectedSourceIds((prev) => {
+      const next = new Set(prev);
+      for (const src of imported) next.add(src.id);
+      return next;
+    });
   }, []);
 
   // ── Add new temperature run ──
@@ -584,9 +610,14 @@ export default function TemperatureAnalysisPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-100">Temperature Analysis</h1>
-        <Button size="sm" onClick={handleAddRun}>
-          + Add Temperature Run
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
+            📂 Load from History
+          </Button>
+          <Button size="sm" onClick={handleAddRun}>
+            + Add Temperature Run
+          </Button>
+        </div>
       </div>
 
       {/* ── Info Banner ── */}
@@ -595,14 +626,21 @@ export default function TemperatureAnalysisPage() {
       </div>
 
       {/* ── Data Source Selector & Comparison Charts ── */}
-      {dataSources.length > 0 && (
+      {(dataSources.length > 0 || importedSources.length > 0) && (
         <Card title="Comparison Charts">
           <div className="space-y-4">
             {/* Source selector */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-gray-400 uppercase font-medium">Select Readings to Compare</span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowPyroPicker(true)}
+                  >
+                    📂 Load from History
+                  </Button>
                   <button onClick={selectAll} className="text-[10px] text-[#00d4aa] hover:text-[#00d4aa]/80">
                     Select all
                   </button>
@@ -848,6 +886,14 @@ export default function TemperatureAnalysisPage() {
           </div>
         )}
       </Card>
+
+      {/* ── Pyro Picker Modal ── */}
+      <PyroPickerModal
+        open={showPyroPicker}
+        onClose={() => setShowPyroPicker(false)}
+        onSelect={handleImportPyroSources}
+        currentSessionId={session.id}
+      />
     </div>
   );
 }

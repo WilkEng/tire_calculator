@@ -25,6 +25,7 @@ export function createSession(
   return {
     id: generateId(),
     date: now.slice(0, 10),
+    vehicle: "",
     location: "",
     notes: "",
     setupTags: [],

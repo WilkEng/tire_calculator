@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
+import { SearchFilterBar, useSessionFilter } from "@/components/ui/SearchFilterBar";
 import { getAllSessions } from "@/lib/persistence/db";
 import type { Session, Stint, StintBaseline, PitstopEntry, Corner } from "@/lib/domain/models";
 
@@ -41,6 +42,8 @@ export function BaselinePickerModal({
       .finally(() => setLoading(false));
   }, [open]);
 
+  const { query, setQuery, filtered } = useSessionFilter(sessions);
+
   // Close on Escape
   useEffect(() => {
     if (!open) return;
@@ -61,9 +64,9 @@ export function BaselinePickerModal({
 
   if (!open) return null;
 
-  // Group sessions by track
+  // Group filtered sessions by track
   const byTrack = new Map<string, Session[]>();
-  for (const s of sessions) {
+  for (const s of filtered) {
     const track = s.trackName || "Unknown Track";
     if (!byTrack.has(track)) byTrack.set(track, []);
     byTrack.get(track)!.push(s);
@@ -98,6 +101,18 @@ export function BaselinePickerModal({
           </button>
         </div>
 
+        {/* Search */}
+        {sessions.length > 0 && (
+          <div className="px-4 pt-3">
+            <SearchFilterBar
+              query={query}
+              onChange={setQuery}
+              resultCount={filtered.length}
+              totalCount={sessions.length}
+            />
+          </div>
+        )}
+
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
@@ -105,6 +120,10 @@ export function BaselinePickerModal({
           ) : sessions.length === 0 ? (
             <p className="text-gray-400 text-center py-8">
               No saved sessions found. Export a baseline first.
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">
+              No sessions match your search.
             </p>
           ) : (
             <div className="space-y-4">
@@ -137,6 +156,11 @@ export function BaselinePickerModal({
                                 ? new Date(session.date).toLocaleDateString()
                                 : ""}
                             </span>
+                            <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                              {session.vehicle && <span>{session.vehicle}</span>}
+                              {session.location && <span>{session.location}</span>}
+                              {session.compoundPreset && <span>{session.compoundPreset}</span>}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500">

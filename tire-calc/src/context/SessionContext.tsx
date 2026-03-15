@@ -42,6 +42,7 @@ interface SessionContextValue {
     name: string;
     trackName: string;
     date?: string;
+    vehicle?: string;
     location?: string;
     latitude?: number;
     longitude?: number;
@@ -147,6 +148,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       name: string;
       trackName: string;
       date?: string;
+      vehicle?: string;
       location?: string;
       latitude?: number;
       longitude?: number;
@@ -157,6 +159,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         name: params.name,
         trackName: params.trackName,
         date: params.date ?? new Date().toISOString().slice(0, 10),
+        vehicle: params.vehicle ?? "",
         location: params.location ?? "",
         latitude: params.latitude,
         longitude: params.longitude,

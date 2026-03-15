@@ -5,6 +5,7 @@ import { useSessionContext } from "@/context/SessionContext";
 import { getAllSessions, clearHistory, deleteSession } from "@/lib/persistence/db";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { SearchFilterBar, useSessionFilter } from "@/components/ui/SearchFilterBar";
 import Link from "next/link";
 import type { Session } from "@/lib/domain/models";
 
@@ -27,6 +28,8 @@ export default function HistoryPage() {
   useEffect(() => {
     loadSessions();
   }, []);
+
+  const { query, setQuery, filtered } = useSessionFilter(sessions);
 
   const handleClearHistory = async () => {
     if (!confirm("Are you sure you want to delete all history?")) return;
@@ -65,39 +68,55 @@ export default function HistoryPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {sessions.map((s) => (
-            <Card key={s.id} className="flex flex-col sm:flex-row gap-4 justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-200">
-                  {s.name || "Unnamed Session"}
-                </h3>
-                <div className="text-sm text-gray-400 space-y-1">
-                  <p>Track: {s.trackName || "Unknown"}</p>
-                  <p>{s.date ? new Date(s.date).toLocaleDateString() : "No date"}</p>
-                  <span>{s.stints?.length ?? 0} stint(s), {s.stints?.flatMap(st => st.pitstops).length ?? 0} pitstop(s)</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 justify-center">
-                <Link href="/dashboard">
-                  <Button
-                    className="w-full"
-                    onClick={() => handleLoadSession(s)}
-                  >
-                    Load into active
-                  </Button>
-                </Link>
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => handleDeleteSession(s.id)}
-                >
-                  Delete
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          <SearchFilterBar
+            query={query}
+            onChange={setQuery}
+            resultCount={filtered.length}
+            totalCount={sessions.length}
+          />
+
+          {filtered.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No sessions match your search.</p>
+          ) : (
+            <div className="grid gap-4">
+              {filtered.map((s) => (
+                <Card key={s.id} className="flex flex-col sm:flex-row gap-4 justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-200">
+                      {s.name || "Unnamed Session"}
+                    </h3>
+                    <div className="text-sm text-gray-400 space-y-1">
+                      <p>Track: {s.trackName || "Unknown"}</p>
+                      {s.vehicle && <p>Vehicle: {s.vehicle}</p>}
+                      {s.location && <p>Location: {s.location}</p>}
+                      <p>{s.date ? new Date(s.date).toLocaleDateString() : "No date"}</p>
+                      {s.compoundPreset && <p>Compound: {s.compoundPreset}</p>}
+                      <span>{s.stints?.length ?? 0} stint(s), {s.stints?.flatMap(st => st.pitstops).length ?? 0} pitstop(s)</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 justify-center">
+                    <Link href="/dashboard">
+                      <Button
+                        className="w-full"
+                        onClick={() => handleLoadSession(s)}
+                      >
+                        Load into active
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() => handleDeleteSession(s.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -73,6 +73,7 @@ export default function PlannerPage() {
         name: data.name,
         trackName: data.trackName,
         date: data.date,
+        vehicle: data.vehicle,
         location: data.location,
         latitude: data.latitude,
         longitude: data.longitude,

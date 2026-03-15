@@ -254,6 +254,7 @@ export interface Session {
   id: string;
   name: string;
   trackName: string;
+  vehicle?: string;
   location?: string;
   latitude?: number;
   longitude?: number;
