@@ -76,7 +76,7 @@ export default function SettingsPage() {
             onChange={(e) =>
               updateSettings({ carryOverEnabled: e.target.checked })
             }
-            className="accent-blue-500 w-4 h-4"
+            className="accent-[#00d4aa] w-4 h-4"
           />
           <span className="text-gray-200">
             Enable session-to-session carry-over
@@ -97,7 +97,7 @@ export default function SettingsPage() {
             onChange={(e) =>
               updateSettings({ classicModeEnabled: e.target.checked })
             }
-            className="accent-blue-500 w-4 h-4"
+            className="accent-[#00d4aa] w-4 h-4"
           />
           <span className="text-gray-200">Enable classic mode as baseline</span>
         </label>
@@ -109,7 +109,7 @@ export default function SettingsPage() {
             onChange={(e) =>
               updateSettings({ advancedModeEnabled: e.target.checked })
             }
-            className="accent-blue-500 w-4 h-4"
+            className="accent-[#00d4aa] w-4 h-4"
           />
           <span className="text-gray-200">Show advanced coefficient settings</span>
         </label>

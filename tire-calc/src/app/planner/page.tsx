@@ -5,7 +5,7 @@ import { useSessionContext } from "@/context/SessionContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PitstopCard } from "@/components/planner/PitstopCard";
-import { RecommendationPanel } from "@/components/planner/RecommendationPanel";
+import { ColdPressurePanel } from "@/components/shared/ColdPressurePanel";
 import { SessionHeader } from "@/components/planner/SessionHeader";
 import { SessionStartCard } from "@/components/planner/SessionStartCard";
 import { NewSessionModal } from "@/components/planner/NewSessionModal";
@@ -42,6 +42,7 @@ export default function PlannerPage() {
     updateBledPressure,
     resetBledCorner,
     removePitstop,
+    removeStint,
     updateSession,
     updateStintBaseline,
     importBaselineToStint,
@@ -396,12 +397,25 @@ export default function PlannerPage() {
                     {(stint.pitstops?.length ?? 0) !== 1 ? "s" : ""}
                   </span>
                   {stint.importedBaseline && (
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-teal-900/50 text-teal-300 px-2 py-0.5 rounded">
                       Imported
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {stintIdx > 0 && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(`Delete ${stint.name || `Stint ${stintIdx + 1}`}?`)) {
+                          removeStint(stint.id);
+                        }
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -498,9 +512,17 @@ export default function PlannerPage() {
 
                   {/* ── Recommendation for this stint ── */}
                   {stint.pitstops?.length > 0 && (
-                    <RecommendationPanel
+                    <ColdPressurePanel
                       recommendation={recommendation}
                       pressureUnit={settings.unitsPressure}
+                      temperatureUnit={settings.unitsTemperature}
+                      minColdPressureBar={settings.minColdPressureBar ?? 1.3}
+                      collapsible={true}
+                      defaultCollapsed={true}
+                      session={session}
+                      settings={settings}
+                      currentConditions={currentConditions}
+                      getForecastAtTime={getForecastAtTime}
                     />
                   )}
                 </div>

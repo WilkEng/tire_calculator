@@ -24,7 +24,7 @@ export function SessionStartCard({
               type="text"
               value={session.trackName}
               onChange={(e) => onUpdate({ trackName: e.target.value })}
-              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none"
+              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-[#00d4aa]/50 focus:outline-none"
               placeholder="e.g. Spa-Francorchamps"
             />
           </label>
@@ -36,7 +36,7 @@ export function SessionStartCard({
               type="text"
               value={session.compoundPreset || ""}
               onChange={(e) => onUpdate({ compoundPreset: e.target.value })}
-              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none"
+              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-[#00d4aa]/50 focus:outline-none"
               placeholder="e.g. Slick (Medium)"
             />
           </label>
@@ -48,7 +48,7 @@ export function SessionStartCard({
           <textarea
             value={session.notes || ""}
             onChange={(e) => onUpdate({ notes: e.target.value })}
-            className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none min-h-[60px]"
+            className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-[#00d4aa]/50 focus:outline-none min-h-[60px]"
             placeholder="Track conditions, goals..."
           />
         </label>

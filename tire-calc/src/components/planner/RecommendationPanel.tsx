@@ -14,7 +14,7 @@ export function RecommendationPanel({
 }: RecommendationPanelProps) {
   if (!recommendation) {
     return (
-      <Card title="Next Cold Recommendation" className="border-blue-800">
+      <Card title="Next Cold Recommendation" className="border-teal-800">
         <p className="text-sm text-gray-400">
           Enter pitstop data above to get a recommendation.
         </p>
@@ -26,14 +26,14 @@ export function RecommendationPanel({
   const corners = ["FL", "FR", "RL", "RR"] as const;
 
   return (
-    <Card title="Next Cold Recommendation" className="border-blue-800 bg-gray-900">
+    <Card title="Next Cold Recommendation" className="border-teal-800 bg-gray-900">
       {/* ── Recommended pressures ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         {corners.map((c) => (
           <div key={c} className="text-center">
             <div className="text-xs text-gray-400 uppercase mb-1">{c}</div>
-            <div className="text-2xl font-bold text-blue-400 tabular-nums">
-              {r.recommendedColdPressures[c].toFixed(3)}
+            <div className="text-2xl font-bold text-teal-400 tabular-nums">
+              {r.recommendedColdPressures[c].toFixed(2)}
             </div>
             <div className="text-xs text-gray-500">{pressureUnit}</div>
           </div>
@@ -54,11 +54,11 @@ export function RecommendationPanel({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">Predicted Hot</div>
               <div className="text-sm tabular-nums text-gray-300">
-                {r.predictedHotPressures[c].toFixed(3)}
+                {r.predictedHotPressures[c].toFixed(2)}
               </div>
               <div className={`text-xs tabular-nums ${color}`}>
                 Δ {delta >= 0 ? "+" : ""}
-                {delta.toFixed(3)}
+                {delta.toFixed(2)}
               </div>
             </div>
           );

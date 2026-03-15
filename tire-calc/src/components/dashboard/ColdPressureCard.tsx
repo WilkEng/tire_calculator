@@ -74,9 +74,9 @@ export function ColdPressureCard({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-400 mb-1">{c}</div>
               <div className={`text-2xl font-bold tabular-nums leading-tight ${
-                isBelowMin ? "text-red-400" : "text-blue-400"
+                isBelowMin ? "text-red-400" : "text-teal-400"
               }`}>
-                {cold.toFixed(3)}
+                {cold.toFixed(2)}
               </div>
               <div className="text-[10px] text-gray-500 mt-0.5">
                 {pressureUnit}
@@ -97,7 +97,7 @@ export function ColdPressureCard({
                 }`}
               >
                 {delta >= 0 ? "+" : ""}
-                {delta.toFixed(3)}
+                {delta.toFixed(2)}
               </div>
             </div>
           );

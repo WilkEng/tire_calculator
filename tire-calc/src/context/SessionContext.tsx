@@ -96,6 +96,9 @@ interface SessionContextValue {
   /** Remove a pitstop by id from a stint */
   removePitstop: (stintId: string, pitstopId: string) => void;
 
+  /** Remove a stint by id (cannot remove the first stint) */
+  removeStint: (stintId: string) => void;
+
   /** Update session-level fields */
   updateSession: (updates: Partial<Session>) => void;
 
@@ -373,6 +376,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  /** Remove a stint by id. Cannot remove the first stint. */
+  const removeStint = useCallback((stintId: string) => {
+    setSessionState((prev) => {
+      if (!prev) return prev;
+      // Don't allow removing the first stint
+      if (prev.stints.length <= 1) return prev;
+      if (prev.stints[0].id === stintId) return prev;
+      const stints = prev.stints.filter((s) => s.id !== stintId);
+      return { ...prev, stints, updatedAt: nowISO() };
+    });
+  }, []);
+
   /** Import a baseline (and optionally pitstops) into a stint — marks as imported. */
   const importBaselineToStint = useCallback(
     (
@@ -461,6 +476,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         updateBledPressure,
         resetBledCorner,
         removePitstop,
+        removeStint,
         updateSession,
         addUserWeatherOverride,
         updateSettings,

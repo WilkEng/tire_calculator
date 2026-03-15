@@ -128,14 +128,14 @@ export function HourlyForecastCard({ cards, temperatureUnit }: HourlyForecastCar
             key={card.time}
             className={`flex-shrink-0 flex flex-col items-center px-3 py-3 rounded-lg transition-colors w-[68px] ${
               isCurrent
-                ? "bg-blue-900/30 border border-blue-700/50"
+                ? "bg-teal-900/30 border border-teal-700/50"
                 : "hover:bg-gray-800/30"
             }`}
           >
             {/* Hour */}
             <span
               className={`text-xs font-medium mb-1 ${
-                isCurrent ? "text-blue-400" : "text-gray-400"
+                isCurrent ? "text-teal-400" : "text-gray-400"
               }`}
             >
               {isCurrent ? "Now" : card.hour}
@@ -155,7 +155,7 @@ export function HourlyForecastCard({ cards, temperatureUnit }: HourlyForecastCar
 
             {/* Rain indicator */}
             {card.rainLikely && (
-              <span className="text-[10px] text-blue-400 mt-0.5">
+              <span className="text-[10px] text-teal-400 mt-0.5">
                 {card.humidity}%
               </span>
             )}

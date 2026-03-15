@@ -191,7 +191,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. FP1, Qualifying, Race Day"
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
+              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent placeholder-gray-500"
               autoFocus
             />
           </label>
@@ -206,7 +206,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
               value={trackName}
               onChange={(e) => setTrackName(e.target.value)}
               placeholder="e.g. Spa-Francorchamps"
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
+              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent placeholder-gray-500"
             />
           </label>
 
@@ -219,7 +219,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent"
             />
           </label>
 
@@ -236,7 +236,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
                   onChange={(e) => handleLocationSearch(e.target.value)}
                   onFocus={() => locationResults.length > 0 && setShowLocationDropdown(true)}
                   placeholder="Search city or track..."
-                  className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
+                  className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent placeholder-gray-500"
                 />
                 <Button
                   variant="secondary"
@@ -293,7 +293,7 @@ export function NewSessionModal({ open, onClose, onSubmit }: NewSessionModalProp
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Setup notes, conditions, etc."
               rows={3}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 resize-y"
+              className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent placeholder-gray-500 resize-y"
             />
           </label>
         </div>

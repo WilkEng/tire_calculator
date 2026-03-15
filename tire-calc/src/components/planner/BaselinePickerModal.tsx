@@ -191,7 +191,7 @@ export function BaselinePickerModal({
                                           {CORNERS.map((c) => (
                                             <span key={c} className="tabular-nums">
                                               {c}:{" "}
-                                              {stint.baseline.coldPressures?.[c]?.toFixed(3) ??
+                                              {stint.baseline.coldPressures?.[c]?.toFixed(2) ??
                                                 "—"}
                                             </span>
                                           ))}

@@ -633,18 +633,18 @@ export function computeRecommendation(
 
     const coCorr = carryOver.biasPerCorner[corner] ?? 0;
     const nextCold = rCold + feedback - condCorr + coCorr;
-    recommended[corner] = round(nextCold, 3);
+    recommended[corner] = round(nextCold, 2);
     // Predicted hot = what hot pressure we expect the recommended cold to produce
     // Using the relationship: predictedHot = recommendedCold + (refHot - refCold) + condCorr
     const hotRise = rHot - rCold; // observed pressure rise from cold→hot on reference
-    predicted[corner] = round(nextCold + hotRise + condCorr, 3);
-    deltas[corner] = round(predicted[corner] - targetCorners[corner], 3);
+    predicted[corner] = round(nextCold + hotRise + condCorr, 2);
+    deltas[corner] = round(predicted[corner] - targetCorners[corner], 2);
   }
 
   const refHotFL = refHotMeasured.FL;
   const refTargetFL = refTargetHot.FL;
   if (refHotFL != null && refTargetFL != null) {
-    const diff = round(refHotFL - refTargetFL, 3);
+    const diff = round(refHotFL - refTargetFL, 2);
     if (diff > 0) {
       rationaleLines.push(`Car came in ${Math.abs(diff)} bar high (ref target ${refTargetFL}).`);
     } else if (diff < 0) {
@@ -657,7 +657,7 @@ export function computeRecommendation(
   // Note if target changed between stints
   const newTargetFL = targetCorners.FL;
   if (refTargetFL != null && newTargetFL !== refTargetFL) {
-    const tDiff = round(newTargetFL - refTargetFL, 3);
+    const tDiff = round(newTargetFL - refTargetFL, 2);
     rationaleLines.push(
       `Target changed ${tDiff > 0 ? "+" : ""}${tDiff} bar (${refTargetFL} → ${newTargetFL}).`
     );

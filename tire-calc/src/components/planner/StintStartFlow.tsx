@@ -222,7 +222,7 @@ export function StintStartFlow({
           <button
             className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === "manual"
-                ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
+                ? "bg-gray-700 text-teal-400 border-b-2 border-teal-400"
                 : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
             }`}
             onClick={() => setActiveTab("manual")}
@@ -232,7 +232,7 @@ export function StintStartFlow({
           <button
             className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === "import"
-                ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
+                ? "bg-gray-700 text-teal-400 border-b-2 border-teal-400"
                 : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
             }`}
             onClick={() => setActiveTab("import")}
@@ -242,7 +242,7 @@ export function StintStartFlow({
         </div>
       ) : (
         <div className="flex border-b border-gray-700">
-          <div className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-700 text-blue-400 border-b-2 border-blue-500">
+          <div className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-700 text-teal-400 border-b-2 border-teal-400">
             Stint Setup (based on previous stint)
           </div>
         </div>
@@ -277,10 +277,10 @@ export function StintStartFlow({
             </div>
 
             {isImported && stint.importedBaseline && (
-              <div className="bg-blue-900/20 border border-blue-700/50 rounded p-3 text-sm text-blue-300">
+              <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3 text-sm text-teal-300">
                 <span className="font-medium">Imported baseline</span>
                 {stint.importedBaseline.sourceSessionName && (
-                  <span className="text-blue-400">
+                  <span className="text-teal-400">
                     {" "}from {stint.importedBaseline.sourceSessionName}
                     {stint.importedBaseline.sourceStintName && ` / ${stint.importedBaseline.sourceStintName}`}
                   </span>
@@ -300,9 +300,9 @@ export function StintStartFlow({
           <div className="space-y-5">
             {/* Recommended cold pressures banner */}
             {recommendedColdPressures && (
-              <div className="bg-blue-900/20 border border-blue-700/50 rounded p-3">
+              <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-300">
+                  <span className="text-sm font-medium text-teal-300">
                     Recommended Cold Pressures (from previous stint)
                   </span>
                   <Button variant="secondary" size="sm" onClick={handleApplyRecommended}>
@@ -313,8 +313,8 @@ export function StintStartFlow({
                   {CORNERS.map((c) => (
                     <div key={c} className="text-center">
                       <div className="text-xs text-gray-400">{c}</div>
-                      <div className="text-sm font-bold text-blue-400 tabular-nums">
-                        {recommendedColdPressures[c]?.toFixed(3) ?? "—"}
+                      <div className="text-sm font-bold text-teal-400 tabular-nums">
+                        {recommendedColdPressures[c]?.toFixed(2) ?? "—"}
                       </div>
                     </div>
                   ))}
@@ -515,7 +515,7 @@ function BaselineReadonlyDisplay({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">{c}</div>
               <div className="text-sm text-gray-300 tabular-nums">
-                {baseline.coldPressures?.[c]?.toFixed(3) ?? "—"} {pressureUnit}
+                {baseline.coldPressures?.[c]?.toFixed(2) ?? "—"} {pressureUnit}
               </div>
             </div>
           ))}
@@ -546,13 +546,13 @@ function BaselineReadonlyDisplay({
         </h4>
         {baseline.targetMode === "single" && (
           <p className="text-sm text-gray-300">
-            {baseline.targets.singleTargetHotPressure?.toFixed(3) ?? "—"} {pressureUnit}
+            {baseline.targets.singleTargetHotPressure?.toFixed(2) ?? "—"} {pressureUnit}
           </p>
         )}
         {baseline.targetMode === "front-rear" && (
           <p className="text-sm text-gray-300">
-            Front: {baseline.targets.frontTargetHotPressure?.toFixed(3) ?? "—"} / Rear:{" "}
-            {baseline.targets.rearTargetHotPressure?.toFixed(3) ?? "—"} {pressureUnit}
+            Front: {baseline.targets.frontTargetHotPressure?.toFixed(2) ?? "—"} / Rear:{" "}
+            {baseline.targets.rearTargetHotPressure?.toFixed(2) ?? "—"} {pressureUnit}
           </p>
         )}
         {baseline.targetMode === "four-corner" && (
@@ -561,7 +561,7 @@ function BaselineReadonlyDisplay({
               <div key={c} className="text-center">
                 <div className="text-xs text-gray-500">{c}</div>
                 <div className="text-sm text-gray-300 tabular-nums">
-                  {baseline.targets.cornerTargets?.[c]?.toFixed(3) ?? "—"}
+                  {baseline.targets.cornerTargets?.[c]?.toFixed(2) ?? "—"}
                 </div>
               </div>
             ))}

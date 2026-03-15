@@ -205,7 +205,7 @@ export default function TemperatureAnalysisPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-center text-sm font-semibold text-blue-400">
+                    <div className="text-center text-sm font-semibold text-teal-400">
                       Avg: {groupedAverages.averages[c].avg}°{settings.unitsTemperature}
                     </div>
                   </div>
@@ -248,7 +248,7 @@ export default function TemperatureAnalysisPage() {
                       onChange={(e) =>
                         handleUpdateRun(run.id, { setupTag: e.target.value })
                       }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
                       placeholder="e.g. Baseline"
                     />
                   </label>
@@ -262,7 +262,7 @@ export default function TemperatureAnalysisPage() {
                       onChange={(e) =>
                         handleUpdateRun(run.id, { hotPressureGroup: e.target.value })
                       }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
                       placeholder="e.g. 1.85 bar"
                     />
                   </label>
@@ -274,7 +274,7 @@ export default function TemperatureAnalysisPage() {
                       onChange={(e) =>
                         handleUpdateRun(run.id, { notes: e.target.value })
                       }
-                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50"
                       placeholder="Run notes..."
                     />
                   </label>

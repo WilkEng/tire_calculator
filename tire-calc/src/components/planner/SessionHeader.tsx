@@ -24,7 +24,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
             placeholder="e.g. FP1 Saturday"
           />
@@ -40,7 +40,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
             placeholder="e.g. Spa-Francorchamps"
           />
@@ -56,7 +56,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
           />
         </label>
@@ -75,7 +75,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
             placeholder="City, Country"
           />
@@ -91,7 +91,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
             placeholder="e.g. Pirelli Medium"
           />
@@ -107,7 +107,7 @@ export function SessionHeader({ session, onUpdate }: SessionHeaderProps) {
             className="
               bg-gray-800 border border-gray-600 rounded px-3 py-2
               text-sm text-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-transparent
             "
             placeholder="Session notes..."
           />

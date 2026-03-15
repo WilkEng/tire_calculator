@@ -38,7 +38,7 @@ export function PitstopCard({
   return (
     <Card
       title={`Pitstop ${pitstop.index}`}
-      className={isLatest ? "ring-1 ring-blue-500" : ""}
+      className={isLatest ? "ring-1 ring-[#00d4aa]/50" : ""}
       actions={
         <div className="flex gap-2">
           <Button

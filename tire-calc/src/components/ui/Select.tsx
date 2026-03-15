@@ -25,9 +25,9 @@ export function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="
-          bg-gray-800 border border-gray-600 rounded px-3 py-2
+          bg-gray-800/80 border border-gray-600/60 rounded-lg px-3 py-2
           text-sm text-white
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+          focus:outline-none focus:ring-2 focus:ring-[#00d4aa]/50 focus:border-[#00d4aa]/40
         "
         {...rest}
       >
