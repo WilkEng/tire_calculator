@@ -85,21 +85,46 @@ const WARNING_LABELS: Record<WarningLevel | PressureWarning, string> = {
   too_low: "Pressure too low",
 };
 
+/**
+ * Assess camber from the temperature spread.
+ *
+ * `camberDelta` = inner − outer (positive ⇒ inside hotter).
+ * `spreadThreshold` is the *expected* inside-hotter delta for the current
+ * camber setting. We compare the actual delta against that expectation.
+ *
+ * deviation = camberDelta − spreadThreshold
+ *   |dev| ≤ 3  → perfect
+ *   |dev| ≤ 6  → slightly too much / too little
+ *   |dev| > 6  → too much / too little
+ */
 function assessCamber(camberDelta: number, spreadThreshold: number): WarningLevel {
-  const abs = Math.abs(camberDelta);
-  const third = spreadThreshold / 3;
-  if (abs <= third) return "perfect";
-  if (camberDelta > 0) {
-    return abs <= 2 * third ? "slightly_too_much" : "too_much";
+  const deviation = camberDelta - spreadThreshold;
+  const abs = Math.abs(deviation);
+  if (abs <= 3) return "perfect";
+  if (deviation > 0) {
+    return abs <= 6 ? "slightly_too_much" : "too_much";
   }
-  return abs <= 2 * third ? "slightly_too_little" : "too_little";
+  return abs <= 6 ? "slightly_too_little" : "too_little";
 }
 
-function assessPressure(avgTemp: number, targetAvg: number): PressureWarning {
-  const delta = avgTemp - targetAvg;
-  if (Math.abs(delta) <= 3) return "perfect";
-  if (delta > 0) return delta <= 8 ? "slightly_too_high" : "too_high";
-  return delta >= -8 ? "slightly_too_low" : "too_low";
+/**
+ * Assess tyre pressure from inner/middle/outer temperatures.
+ *
+ * `pressureDelta` = middle − avg(inner, outer).
+ * Positive ⇒ centre is hotter ⇒ pressure too high.
+ * Negative ⇒ centre is colder  ⇒ pressure too low.
+ *
+ *   |delta| ≤ 3  → perfect
+ *   |delta| ≤ 6  → slightly too high / low
+ *   |delta| > 6  → too high / low
+ */
+function assessPressure(pressureDelta: number): PressureWarning {
+  const abs = Math.abs(pressureDelta);
+  if (abs <= 3) return "perfect";
+  if (pressureDelta > 0) {
+    return abs <= 6 ? "slightly_too_high" : "too_high";
+  }
+  return abs <= 6 ? "slightly_too_low" : "too_low";
 }
 
 // ─── Data source types ─────────────────────────────────────────────
@@ -289,10 +314,11 @@ function CornerChart({
       const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
       const camberDelta = round(reading.inner - reading.outer, 1);
       const camberWarning = assessCamber(camberDelta, spreadThreshold);
-      const pressureWarning = assessPressure(avg, 85);
-      return { lineName: rl.name, color: rl.color, avg, camberDelta, camberWarning, pressureWarning };
+      const pressureDelta = round(reading.middle - (reading.inner + reading.outer) / 2, 1);
+      const pressureWarning = assessPressure(pressureDelta);
+      return { lineName: rl.name, color: rl.color, avg, camberDelta, pressureDelta, camberWarning, pressureWarning };
     }).filter(Boolean) as {
-      lineName: string; color: string; avg: number; camberDelta: number;
+      lineName: string; color: string; avg: number; camberDelta: number; pressureDelta: number;
       camberWarning: WarningLevel; pressureWarning: PressureWarning;
     }[];
   }, [resolvedLines, corner, spreadThreshold]);
@@ -356,7 +382,7 @@ function CornerChart({
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
                   <span className="text-xs font-medium text-gray-300">{m.lineName}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pl-4">
+                <div className="grid grid-cols-3 gap-3 pl-4">
                   <div>
                     <div className="text-[10px] text-gray-500 uppercase">Avg Temp</div>
                     <div className="text-sm font-semibold text-gray-200 tabular-nums">
@@ -369,7 +395,13 @@ function CornerChart({
                       {m.camberDelta > 0 ? "+" : ""}{m.camberDelta}°{unit}
                     </div>
                   </div>
-                  <div className="col-span-2 flex flex-wrap gap-2">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase">Δ Pressure (Mid−Avg)</div>
+                    <div className="text-sm font-semibold text-gray-200 tabular-nums">
+                      {m.pressureDelta > 0 ? "+" : ""}{m.pressureDelta}°{unit}
+                    </div>
+                  </div>
+                  <div className="col-span-3 flex flex-wrap gap-2">
                     <WarningBadge level={m.camberWarning} label={WARNING_LABELS[m.camberWarning]} />
                     <WarningBadge level={m.pressureWarning} label={WARNING_LABELS[m.pressureWarning]} />
                   </div>
@@ -827,6 +859,8 @@ export default function TemperatureAnalysisPage() {
                   const avg = groupedAverages.averages[c];
                   const camberDelta = round(avg.inner - avg.outer, 1);
                   const camberLevel = assessCamber(camberDelta, spreadThreshold);
+                  const pressureDelta = round(avg.middle - (avg.inner + avg.outer) / 2, 1);
+                  const pressureLevel = assessPressure(pressureDelta);
                   return (
                     <div key={c} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/30">
                       <div className="text-xs text-gray-400 font-semibold mb-2">
@@ -858,8 +892,12 @@ export default function TemperatureAnalysisPage() {
                       <div className="text-center text-[10px] text-gray-400 mb-1">
                         Δ Camber: {camberDelta > 0 ? "+" : ""}{camberDelta}°
                       </div>
-                      <div className="flex justify-center">
+                      <div className="text-center text-[10px] text-gray-400 mb-1">
+                        Δ Pressure: {pressureDelta > 0 ? "+" : ""}{pressureDelta}°
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-1">
                         <WarningBadge level={camberLevel} label={WARNING_LABELS[camberLevel]} />
+                        <WarningBadge level={pressureLevel} label={WARNING_LABELS[pressureLevel]} />
                       </div>
                     </div>
                   );
