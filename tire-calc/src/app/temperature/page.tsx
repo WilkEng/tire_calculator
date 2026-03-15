@@ -395,7 +395,7 @@ export default function TemperatureAnalysisPage() {
   const [showPyroPicker, setShowPyroPicker] = useState(false);
   const [importedSources, setImportedSources] = useState<DataSource[]>([]);
 
-  const spreadThreshold = settings.camberSpreadThreshold ?? 12;
+  const spreadThreshold = settings.camberSpreadThreshold ?? 9;
 
   // ── Build all available data sources (current event + imported) ──
   const dataSources: DataSource[] = useMemo(() => {

@@ -3,22 +3,27 @@
 import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ColdPressurePanel } from "@/components/shared/ColdPressurePanel";
+import { QuickCalculator } from "@/components/shared/QuickCalculator";
 import { TemperatureChart } from "@/components/dashboard/TemperatureChart";
 import { HourlyForecastCard } from "@/components/dashboard/HourlyForecastCard";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import Link from "next/link";
 import { useMemo } from "react";
-import { computeRecommendation, resolveMinColdPressure, type RecommendationInput } from "@/lib/engine";
-import type { RecommendationOutput } from "@/lib/domain/models";
+import { resolveMinColdPressure } from "@/lib/engine";
 
 export default function DashboardPage() {
   const { event, settings } = useEventContext();
 
-  // Weather Forecast
+  // Fallback geolocation when the event has no coordinates
+  const geo = useGeolocation(!event?.latitude);
+
+  // Weather Forecast — event coords take priority, then geolocation
+  const lat = event?.latitude ?? geo.latitude;
+  const lng = event?.longitude ?? geo.longitude;
   const weatherForecast = useWeatherForecast(
-    event?.latitude,
-    event?.longitude,
+    lat,
+    lng,
     event?.userWeatherOverrides
   );
 
@@ -60,103 +65,27 @@ export default function DashboardPage() {
     return overrides[0]?.asphaltOverride;
   }, [event?.userWeatherOverrides]);
 
-  // Recommendation
-  const recommendation: RecommendationOutput | null = useMemo(() => {
-    if (!event || !event.stints || event.stints.length < 1) return null;
-    const latestStint = event.stints[event.stints.length - 1];
-    if (!latestStint.pitstops || latestStint.pitstops.length === 0) return null;
-    const latestPitstop = latestStint.pitstops[latestStint.pitstops.length - 1];
-
-    const ambient =
-      weatherForecast.currentConditions?.ambient ??
-      latestStint.baseline?.ambientMeasured ??
-      20;
-    const asphalt =
-      weatherForecast.currentConditions?.asphalt ??
-      latestStint.baseline?.asphaltMeasured ??
-      30;
-
-    const input: RecommendationInput = {
-      currentEvent: event,
-      currentStintId: latestStint.id,
-      currentPitstopId: latestPitstop.id,
-      nextConditions: {
-        ambientTemp: ambient,
-        asphaltTemp: asphalt,
-        startTireTemps: latestStint.baseline?.startTireTemps,
-      },
-      targetMode: latestStint.baseline?.targetMode ?? "single",
-      targets: latestStint.baseline?.targets ?? {},
-      priorEvents: [],
-      settings,
-      compound: latestStint.baseline?.compound,
-    };
-
-    try {
-      return computeRecommendation(input);
-    } catch {
-      return null;
-    }
-  }, [event, settings, weatherForecast.currentConditions]);
-
-  // Conditions label
-  const conditionsLabel = useMemo(() => {
-    if (!event) return undefined;
-    const latestStint = event.stints?.[event.stints.length - 1];
-    if (!latestStint) return undefined;
-
-    const parts: string[] = [`Based on ${latestStint.name}`];
-    if (weatherForecast.currentConditions) {
-      parts.push(
-        `\u2192 ${weatherForecast.currentConditions.ambient.toFixed(1)}\u00B0${settings.unitsTemperature} amb / ${weatherForecast.currentConditions.asphalt.toFixed(1)}\u00B0${settings.unitsTemperature} asp`
-      );
-      if (hasUserAmbient || hasUserAsphalt) {
-        parts.push("(user-corrected)");
-      } else {
-        parts.push("(API forecast)");
-      }
-    }
-    return parts.join(" ");
-  }, [event, weatherForecast.currentConditions, settings.unitsTemperature, hasUserAmbient, hasUserAsphalt]);
-
   const latestStint = event?.stints?.[event.stints.length - 1];
+  const hasCoords = lat != null && lng != null;
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-100">Dashboard</h1>
 
-      {!event ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-6">
-          <p className="text-gray-400 text-center max-w-md">
-            No active event. Create one from the Planner or load from History.
-          </p>
-          <div className="flex gap-3">
-            <Link href="/planner">
-              <Button>+ New Event</Button>
-            </Link>
-            <Link href="/history">
-              <Button variant="secondary">Load from History</Button>
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Unified Cold Pressure Recommendation + Calculator */}
-          <ColdPressurePanel
-            recommendation={recommendation}
-            pressureUnit={settings.unitsPressure}
-            temperatureUnit={settings.unitsTemperature}
-            conditionsLabel={conditionsLabel}
-            minColdPressureBar={resolveMinColdPressure(event.stints?.[event.stints.length - 1]?.baseline?.compound, settings)}
-            collapsible={true}
-            defaultCollapsed={true}
-            event={event}
-            settings={settings}
-            currentConditions={weatherForecast.currentConditions}
-            getForecastAtTime={weatherForecast.getForecastAtTime}
-          />
+      {/* Quick Calculator — always present, collapsed */}
+      <QuickCalculator
+        pressureUnit={settings.unitsPressure}
+        temperatureUnit={settings.unitsTemperature}
+        minColdPressureBar={resolveMinColdPressure(latestStint?.baseline?.compound, settings)}
+        event={event ?? undefined}
+        settings={settings}
+        currentConditions={weatherForecast.currentConditions}
+        getForecastAtTime={weatherForecast.getForecastAtTime}
+      />
 
-          {/* Temperature Chart */}
+      {/* Weather section — shown whenever we have coordinates */}
+      {hasCoords ? (
+        <>
           <Card title="Temperature Forecast">
             {weatherForecast.isLoading ? (
               <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
@@ -185,7 +114,6 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* Hourly Forecast */}
           <Card title="Hourly Forecast">
             {weatherForecast.isLoading ? (
               <p className="text-gray-500 text-sm text-center py-4">
@@ -198,9 +126,20 @@ export default function DashboardPage() {
               />
             )}
           </Card>
+        </>
+      ) : !geo.loading ? (
+        <Card title="Weather">
+          <p className="text-gray-500 text-sm">
+            {geo.error
+              ? "Could not get your location. Create an event with a track location or allow geolocation to see the weather forecast."
+              : "Set a track location on an event or allow geolocation to see the weather forecast."}
+          </p>
+        </Card>
+      ) : null}
 
-          {/* Event Info Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* Event-specific cards */}
+      {event ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <Card title="Current Conditions">
               {weatherForecast.currentConditions ? (
                 <div className="space-y-3">
@@ -364,6 +303,19 @@ export default function DashboardPage() {
                 </p>
               )}
             </Card>
+          </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-8 gap-6">
+          <p className="text-gray-400 text-center max-w-md">
+            No active event. Create one from the Planner or load from History.
+          </p>
+          <div className="flex gap-3">
+            <Link href="/planner">
+              <Button>+ New Event</Button>
+            </Link>
+            <Link href="/history">
+              <Button variant="secondary">Load from History</Button>
+            </Link>
           </div>
         </div>
       )}

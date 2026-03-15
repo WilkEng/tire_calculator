@@ -5,7 +5,7 @@ import { useEventContext } from "@/context/EventContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PitstopCard } from "@/components/planner/PitstopCard";
-import { ColdPressurePanel } from "@/components/shared/ColdPressurePanel";
+import { QuickCalculator } from "@/components/shared/QuickCalculator";
 import { EventHeader } from "@/components/planner/EventHeader";
 import { EventStartCard } from "@/components/planner/EventStartCard";
 import { NewEventModal } from "@/components/planner/NewEventModal";
@@ -362,7 +362,6 @@ export default function PlannerPage() {
         {event.stints?.map((stint, stintIdx) => {
           const isCollapsed = collapsedStints.has(stint.id);
           const isLastStint = stintIdx === (event.stints?.length ?? 0) - 1;
-          const recommendation = computeStintRecommendation(stint.id);
 
           // Compute live recommendation for this stint from the PREVIOUS stint's
           // pitstop data + THIS stint's conditions/targets.
@@ -513,25 +512,19 @@ export default function PlannerPage() {
                     </Button>
                   </div>
 
-                  {/* -- Recommendation for this stint -- */}
-                  {stint.pitstops?.length > 0 && (() => {
-                    const compound = stint.baseline?.compound;
-                    const effectiveMin = resolveMinColdPressure(compound, settings);
-                    return (
-                      <ColdPressurePanel
-                        recommendation={recommendation}
-                        pressureUnit={settings.unitsPressure}
-                        temperatureUnit={settings.unitsTemperature}
-                        minColdPressureBar={effectiveMin}
-                        collapsible={true}
-                        defaultCollapsed={true}
-                        event={event}
-                        settings={settings}
-                        currentConditions={currentConditions}
-                        getForecastAtTime={getForecastAtTime}
-                      />
-                    );
-                  })()}
+                  {/* -- Quick Calculator for next stint -- */}
+                  {stint.pitstops?.length > 0 && (
+                    <QuickCalculator
+                      pressureUnit={settings.unitsPressure}
+                      temperatureUnit={settings.unitsTemperature}
+                      minColdPressureBar={resolveMinColdPressure(stint.baseline?.compound, settings)}
+                      event={event}
+                      settings={settings}
+                      currentConditions={currentConditions}
+                      getForecastAtTime={getForecastAtTime}
+                      referenceStintId={stint.id}
+                    />
+                  )}
                 </div>
               )}
             </div>
