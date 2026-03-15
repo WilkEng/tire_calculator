@@ -16,7 +16,6 @@ import {
   computeRecommendation,
   selectReference,
   expandTargets,
-  resolveMinColdPressure,
   type RecommendationInput,
 } from "@/lib/engine";
 import type {
@@ -512,7 +511,6 @@ export default function PlannerPage() {
                     <QuickCalculator
                       pressureUnit={settings.unitsPressure}
                       temperatureUnit={settings.unitsTemperature}
-                      minColdPressureBar={resolveMinColdPressure(stint.baseline?.compound, settings)}
                       event={event}
                       settings={settings}
                       currentConditions={currentConditions}

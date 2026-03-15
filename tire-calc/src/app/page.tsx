@@ -11,7 +11,6 @@ import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import Link from "next/link";
 import { useMemo } from "react";
-import { resolveMinColdPressure } from "@/lib/engine";
 
 export default function DashboardPage() {
   const { event, settings } = useEventContext();
@@ -77,7 +76,6 @@ export default function DashboardPage() {
       <QuickCalculator
         pressureUnit={settings.unitsPressure}
         temperatureUnit={settings.unitsTemperature}
-        minColdPressureBar={resolveMinColdPressure(latestStint?.baseline?.compound, settings)}
         event={event ?? undefined}
         settings={settings}
         currentConditions={weatherForecast.currentConditions}
@@ -258,14 +256,7 @@ export default function DashboardPage() {
                     ) || 0}
                   </span>
                 </div>
-                {event.compoundPreset && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Compound</span>
-                    <span className="text-gray-200 font-medium">
-                      {event.compoundPreset}
-                    </span>
-                  </div>
-                )}
+
               </div>
               <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
                 <Link href="/planner">

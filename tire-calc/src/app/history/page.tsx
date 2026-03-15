@@ -53,7 +53,6 @@ function PreviewModal({
             <Row label="Date" value={event.date ? new Date(event.date).toLocaleDateString() : "—"} />
             {event.vehicle && <Row label="Vehicle" value={event.vehicle} />}
             {event.location && <Row label="Location" value={event.location} />}
-            {event.compoundPreset && <Row label="Compound" value={event.compoundPreset} />}
           </div>
 
           {/* Stints summary */}
@@ -399,7 +398,6 @@ export default function HistoryPage() {
                           {s.vehicle && <p>Vehicle: {s.vehicle}</p>}
                           {s.location && <p>Location: {s.location}</p>}
                           <p>{s.date ? new Date(s.date).toLocaleDateString() : "No date"}</p>
-                          {s.compoundPreset && <p>Compound: {s.compoundPreset}</p>}
                           <span>
                             {s.stints?.length ?? 0} stint(s),{" "}
                             {s.stints?.flatMap((st) => st.pitstops).length ?? 0} pitstop(s)

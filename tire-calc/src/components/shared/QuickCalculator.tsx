@@ -8,8 +8,10 @@ import type {
   AppSettings,
   Event,
 } from "@/lib/domain/models";
-import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
+import { computeRecommendation, resolveMinColdPressure, type RecommendationInput } from "@/lib/engine";
+import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import { NumericInput } from "@/components/ui/NumericInput";
+import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
 // ─── Types ─────────────────────────────────────────────────────────
@@ -19,8 +21,6 @@ interface QuickCalculatorProps {
   pressureUnit: string;
   /** Temperature display unit */
   temperatureUnit: string;
-  /** Threshold below which cold pressure shows a red warning (bar) */
-  minColdPressureBar?: number;
   /** Event to source baseline data from */
   event?: Event | null;
   /** App settings */
@@ -40,7 +40,6 @@ const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 export function QuickCalculator({
   pressureUnit,
   temperatureUnit,
-  minColdPressureBar = 1.3,
   event,
   settings,
   currentConditions,
@@ -52,6 +51,7 @@ export function QuickCalculator({
   const [calcAsphalt, setCalcAsphalt] = useState<number | undefined>(undefined);
   const [calcTireTemps, setCalcTireTemps] = useState<PartialCornerValues>({});
   const [calcPredTime, setCalcPredTime] = useState("");
+  const [compoundOverride, setCompoundOverride] = useState<string | null>(null);
 
   // Find reference stint (explicit or latest with pitstop data)
   const refStint = useMemo(() => {
@@ -67,6 +67,25 @@ export function QuickCalculator({
   }, [event, referenceStintId]);
 
   const latestPitstop = refStint?.pitstops?.[refStint.pitstops.length - 1] ?? null;
+
+  // Compound: user override → baseline → "medium"
+  const baselineCompound = refStint?.baseline?.compound ?? "medium";
+  const selectedCompound = compoundOverride ?? baselineCompound;
+  const minColdPressureBar = settings
+    ? resolveMinColdPressure(selectedCompound, settings)
+    : 1.3;
+
+  // Build compound options (built-in + custom)
+  const compoundOptions = useMemo(() => [
+    ...BUILT_IN_COMPOUNDS.map((c) => ({
+      value: c,
+      label: c.charAt(0).toUpperCase() + c.slice(1),
+    })),
+    ...(settings?.customCompounds ?? []).map((c) => ({
+      value: c.id,
+      label: c.name || `Custom (${c.id.slice(0, 6)})`,
+    })),
+  ], [settings?.customCompounds]);
 
   // Handle prediction fill
   const handleUsePrediction = useCallback(
@@ -114,7 +133,7 @@ export function QuickCalculator({
       targets: refStint.baseline?.targets ?? {},
       priorEvents: [],
       settings,
-      compound: refStint.baseline?.compound,
+      compound: selectedCompound,
     };
 
     try {
@@ -122,7 +141,7 @@ export function QuickCalculator({
     } catch {
       return null;
     }
-  }, [event, settings, refStint, latestPitstop, hasRequiredInputs, calcAmbient, calcAsphalt, calcTireTemps]);
+  }, [event, settings, refStint, latestPitstop, hasRequiredInputs, calcAmbient, calcAsphalt, calcTireTemps, selectedCompound]);
 
   // Can we compute at all? Need event + stint with pitstop data
   const canCompute = !!event && !!refStint && !!latestPitstop && !!settings;
@@ -159,9 +178,16 @@ export function QuickCalculator({
               {/* Reference info */}
               <div className="text-[11px] text-gray-400">
                 Based on <span className="text-gray-200 font-medium">{refStint.name}</span>
-                {refStint.baseline?.compound && (
-                  <> · <span className="text-gray-300">{refStint.baseline.compound}</span></>
-                )}
+              </div>
+
+              {/* Compound selector */}
+              <div className="max-w-48">
+                <Select
+                  label="Compound"
+                  value={selectedCompound}
+                  onChange={(v) => setCompoundOverride(v)}
+                  options={compoundOptions}
+                />
               </div>
 
               {/* Prediction picker */}
