@@ -56,7 +56,7 @@ export default function SettingsPage() {
 
       {/* ── Units ── */}
       <Card title="Units">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Pressure Unit"
             value={settings.unitsPressure}
@@ -83,7 +83,7 @@ export default function SettingsPage() {
 
       {/* ── Defaults ── */}
       <Card title="Defaults">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumericInput
             label="Default Start Tire Temp"
             unit={`°${settings.unitsTemperature}`}

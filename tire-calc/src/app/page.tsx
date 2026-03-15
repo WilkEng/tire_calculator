@@ -4,6 +4,7 @@ import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { QuickCalculator } from "@/components/shared/QuickCalculator";
+import { AdBanner } from "@/components/shared/AdBanner";
 import { TemperatureChart } from "@/components/dashboard/TemperatureChart";
 import { HourlyForecastCard } from "@/components/dashboard/HourlyForecastCard";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
@@ -194,7 +195,7 @@ export default function DashboardPage() {
                   )}
 
                   {/* Weather metadata */}
-                  <div className="pt-3 border-t border-gray-700/40 flex gap-4 text-xs text-gray-500">
+                  <div className="pt-3 border-t border-gray-700/40 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                     <span>Cloud: {weatherForecast.currentConditions.cloudCover}%</span>
                     <span>Wind: {weatherForecast.currentConditions.windSpeed?.toFixed(1)} m/s</span>
                     <span>Humidity: {weatherForecast.currentConditions.humidity}%</span>
@@ -319,6 +320,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Promotional banner */}
+      <AdBanner />
     </div>
   );
 }

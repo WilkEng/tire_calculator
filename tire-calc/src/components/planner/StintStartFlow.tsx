@@ -41,7 +41,7 @@ interface StintStartFlowProps {
   /** Callback to pick a baseline from history */
   onPickFromHistory: () => void;
   /** Callback when user changes ambient/asphalt (for recording overrides) */
-  onWeatherOverride?: (field: "ambient" | "asphalt", value: number) => void;
+  onWeatherOverride?: (field: "ambient" | "asphalt", value: number, measurementTime?: Date) => void;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -75,8 +75,19 @@ export function StintStartFlow({
     isImported ? "import" : "manual"
   );
   const [predictionTime, setPredictionTime] = useState("");
+  const [measureMode, setMeasureMode] = useState<"now" | "custom">("now");
+  const [measureTime, setMeasureTime] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const baseline = stint.baseline;
+
+  // Resolved measurement timestamp based on user selection
+  const getMeasurementDate = useCallback((): Date | undefined => {
+    if (measureMode !== "custom" || !measureTime) return undefined; // "now" → undefined → handler uses Date()
+    const [h, m] = measureTime.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
+  }, [measureMode, measureTime]);
 
   // ─── Cold Pressure Handlers ────────────────────────────────────
 
@@ -153,20 +164,20 @@ export function StintStartFlow({
     (value: number | undefined) => {
       onBaselineUpdate({ ambientMeasured: value });
       if (value != null && onWeatherOverride) {
-        onWeatherOverride("ambient", value);
+        onWeatherOverride("ambient", value, getMeasurementDate());
       }
     },
-    [onBaselineUpdate, onWeatherOverride]
+    [onBaselineUpdate, onWeatherOverride, getMeasurementDate]
   );
 
   const handleAsphaltChange = useCallback(
     (value: number | undefined) => {
       onBaselineUpdate({ asphaltMeasured: value });
       if (value != null && onWeatherOverride) {
-        onWeatherOverride("asphalt", value);
+        onWeatherOverride("asphalt", value, getMeasurementDate());
       }
     },
-    [onBaselineUpdate, onWeatherOverride]
+    [onBaselineUpdate, onWeatherOverride, getMeasurementDate]
   );
 
   // ─── Use weather prediction ────────────────────────────────────
@@ -313,7 +324,7 @@ export function StintStartFlow({
                     Apply
                   </Button>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {CORNERS.map((c) => (
                     <div key={c} className="text-center">
                       <div className="text-xs text-gray-400">{c}</div>
@@ -350,7 +361,7 @@ export function StintStartFlow({
               <h4 className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
                 Cold Tire Temperatures
               </h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {CORNERS.map((c) => (
                   <NumericInput
                     key={c}
@@ -368,7 +379,7 @@ export function StintStartFlow({
               <h4 className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
                 Start Cold Pressures
               </h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {CORNERS.map((c) => (
                   <NumericInput
                     key={c}
@@ -421,7 +432,7 @@ export function StintStartFlow({
                 )}
 
                 {baseline.targetMode === "four-corner" && (
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {CORNERS.map((c) => (
                       <NumericInput
                         key={c}
@@ -449,7 +460,7 @@ export function StintStartFlow({
 
               {/* Prediction time picker */}
               {getForecastAtTime && (
-                <div className="flex items-center gap-2 mb-3 p-2 bg-gray-700/40 rounded">
+                <div className="flex flex-wrap items-center gap-2 mb-3 p-2 bg-gray-700/40 rounded">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -462,7 +473,7 @@ export function StintStartFlow({
                     type="time"
                     value={predictionTime}
                     onChange={(e) => setPredictionTime(e.target.value)}
-                    className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 w-28"
+                    className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 w-24"
                   />
                   <Button
                     variant="secondary"
@@ -474,6 +485,41 @@ export function StintStartFlow({
                   </Button>
                 </div>
               )}
+
+              {/* Measurement time selector */}
+              <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                <span className="text-gray-500">Measured at:</span>
+                <button
+                  type="button"
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    measureMode === "now"
+                      ? "bg-[#00d4aa]/15 text-[#00d4aa] border border-[#00d4aa]/30"
+                      : "bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-gray-200"
+                  }`}
+                  onClick={() => setMeasureMode("now")}
+                >
+                  Now
+                </button>
+                <button
+                  type="button"
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    measureMode === "custom"
+                      ? "bg-[#00d4aa]/15 text-[#00d4aa] border border-[#00d4aa]/30"
+                      : "bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-gray-200"
+                  }`}
+                  onClick={() => setMeasureMode("custom")}
+                >
+                  Custom
+                </button>
+                {measureMode === "custom" && (
+                  <input
+                    type="time"
+                    value={measureTime}
+                    onChange={(e) => setMeasureTime(e.target.value)}
+                    className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 w-24"
+                  />
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <NumericInput
@@ -517,7 +563,7 @@ function BaselineReadonlyDisplay({
         <h4 className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
           Cold Pressures
         </h4>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {CORNERS.map((c) => (
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">{c}</div>
@@ -534,7 +580,7 @@ function BaselineReadonlyDisplay({
         <h4 className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
           Cold Tire Temps
         </h4>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {CORNERS.map((c) => (
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">{c}</div>
@@ -563,7 +609,7 @@ function BaselineReadonlyDisplay({
           </p>
         )}
         {baseline.targetMode === "four-corner" && (
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {CORNERS.map((c) => (
               <div key={c} className="text-center">
                 <div className="text-xs text-gray-500">{c}</div>

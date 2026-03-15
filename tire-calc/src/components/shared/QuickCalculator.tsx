@@ -166,7 +166,7 @@ export function QuickCalculator({
 
               {/* Prediction picker */}
               {getForecastAtTime && (
-                <div className="flex items-center gap-2 p-2 bg-gray-700/30 rounded-lg">
+                <div className="flex flex-wrap items-center gap-2 p-2 bg-gray-700/30 rounded-lg">
                   <Button variant="secondary" size="sm" onClick={() => handleUsePrediction()}>
                     🌤 Now
                   </Button>
@@ -211,7 +211,7 @@ export function QuickCalculator({
                 <div className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-2">
                   Cold Tire Temperatures <span className="text-gray-600">(optional)</span>
                 </div>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {CORNERS.map((c) => (
                     <NumericInput
                       key={c}
@@ -258,7 +258,7 @@ export function QuickCalculator({
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {CORNERS.map((c) => {
                       const cold = result.recommendedColdPressures[c];
                       const delta = result.deltasToTarget[c];

@@ -49,7 +49,7 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h1 className="text-xl font-bold text-gray-100">Event History</h1>
         <Button variant="secondary" onClick={handleClearHistory}>
           Clear History

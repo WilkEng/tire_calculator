@@ -322,60 +322,122 @@ export function buildAsphaltForecastLine(
   }));
 }
 
+// ─── Offset interpolation helpers ──────────────────────────────────
+
+interface OffsetEntry {
+  epoch: number;
+  offset: number;
+}
+
+/**
+ * Deduplicate offset entries that are within 1 minute of each other,
+ * keeping only the latest value in each cluster.
+ */
+function deduplicateEntries(entries: OffsetEntry[]): OffsetEntry[] {
+  const ONE_MINUTE = 60_000;
+  const result: OffsetEntry[] = [];
+  for (const e of entries) {
+    if (result.length > 0 && Math.abs(result[result.length - 1].epoch - e.epoch) < ONE_MINUTE) {
+      result[result.length - 1] = e;
+    } else {
+      result.push(e);
+    }
+  }
+  return result;
+}
+
+/**
+ * Linearly interpolate offset for a target time given a sorted array of
+ * (epoch, offset) entries.
+ *
+ * - Before first entry → first entry's offset
+ * - After last entry  → last entry's offset
+ * - Between entries   → linear interpolation
+ */
+function interpolateOffset(targetEpoch: number, entries: OffsetEntry[]): number {
+  if (entries.length === 0) return 0;
+  if (entries.length === 1) return entries[0].offset;
+  if (targetEpoch <= entries[0].epoch) return entries[0].offset;
+  if (targetEpoch >= entries[entries.length - 1].epoch) return entries[entries.length - 1].offset;
+
+  for (let i = 0; i < entries.length - 1; i++) {
+    if (targetEpoch >= entries[i].epoch && targetEpoch <= entries[i + 1].epoch) {
+      const t = (targetEpoch - entries[i].epoch) / (entries[i + 1].epoch - entries[i].epoch);
+      return entries[i].offset + t * (entries[i + 1].offset - entries[i].offset);
+    }
+  }
+  return entries[entries.length - 1].offset;
+}
+
 /**
  * Build full chart data from forecast points + optional user overrides.
  *
- * Offset model: for each user override, compute the diff between user value
- * and the API value at the nearest forecast time. The most recent override's
- * offset is applied to all forecast points to produce the user-corrected line.
+ * Time-aware offset model:
+ * - Each user override contributes a correction anchored at its timestamp.
+ * - Multiple overrides create a piecewise-linear offset curve.
+ * - If only ambient overrides exist (no asphalt), the ambient correction is
+ *   also applied to the asphalt forecast line.
+ * - If `todayOnly` is true, overrides from previous days are ignored
+ *   (useful when an old event is reopened from history).
  */
 export function buildChartData(
   forecastPoints: WeatherForecastPoint[],
-  userOverrides?: { timestamp: string; ambientOverride?: number; asphaltOverride?: number }[]
+  userOverrides?: { timestamp: string; ambientOverride?: number; asphaltOverride?: number }[],
+  todayOnly = false
 ): ChartDataPoint[] {
   if (forecastPoints.length === 0) return [];
 
-  // Calculate user offsets from the most recent override
-  let ambientOffset: number | null = null;
-  let asphaltOffset: number | null = null;
+  // Optionally filter to today's overrides only
+  let overrides = userOverrides ?? [];
+  if (todayOnly && overrides.length > 0) {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    overrides = overrides.filter((o) => new Date(o.timestamp).getTime() >= startOfDay);
+  }
 
-  if (userOverrides && userOverrides.length > 0) {
-    // Sort overrides by time, most recent last
-    const sorted = [...userOverrides].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+  // Build per-field offset entries from all overrides
+  const ambientEntries: OffsetEntry[] = [];
+  const asphaltEntries: OffsetEntry[] = [];
 
-    // Find most recent ambient override
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      if (sorted[i].ambientOverride != null) {
-        const nearest = findNearestForecast(forecastPoints, new Date(sorted[i].timestamp));
-        if (nearest) {
-          ambientOffset = sorted[i].ambientOverride! - nearest.ambient;
-        }
-        break;
-      }
+  for (const ov of overrides) {
+    const ovTime = new Date(ov.timestamp);
+    const nearest = findNearestForecast(forecastPoints, ovTime);
+    if (!nearest) continue;
+
+    if (ov.ambientOverride != null) {
+      ambientEntries.push({
+        epoch: ovTime.getTime(),
+        offset: ov.ambientOverride - nearest.ambient,
+      });
     }
-
-    // Find most recent asphalt override
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      if (sorted[i].asphaltOverride != null) {
-        const nearest = findNearestForecast(forecastPoints, new Date(sorted[i].timestamp));
-        if (nearest) {
-          const apiAsphalt = estimateAsphaltTemp(
-            nearest.ambient,
-            nearest.shortwaveRadiation,
-            nearest.windSpeed,
-            nearest.cloudCover
-          );
-          asphaltOffset = sorted[i].asphaltOverride! - apiAsphalt;
-        }
-        break;
-      }
+    if (ov.asphaltOverride != null) {
+      const apiAsphalt = estimateAsphaltTemp(
+        nearest.ambient,
+        nearest.shortwaveRadiation,
+        nearest.windSpeed,
+        nearest.cloudCover
+      );
+      asphaltEntries.push({
+        epoch: ovTime.getTime(),
+        offset: ov.asphaltOverride - apiAsphalt,
+      });
     }
   }
 
+  // Sort & deduplicate
+  ambientEntries.sort((a, b) => a.epoch - b.epoch);
+  asphaltEntries.sort((a, b) => a.epoch - b.epoch);
+  const ambDedupe = deduplicateEntries(ambientEntries);
+  const aspDedupe = deduplicateEntries(asphaltEntries);
+
+  const hasAmbient = ambDedupe.length > 0;
+  const hasAsphalt = aspDedupe.length > 0;
+  // Rule: if only ambient overrides exist, propagate ambient correction to asphalt
+  const propagateAmbToAsp = hasAmbient && !hasAsphalt;
+
   return forecastPoints.map((p) => {
     const dt = new Date(p.time);
+    const epoch = dt.getTime();
     const apiAsphalt = estimateAsphaltTemp(
       p.ambient,
       p.shortwaveRadiation,
@@ -391,11 +453,16 @@ export function buildChartData(
       apiAsphalt: Math.round(apiAsphalt * 10) / 10,
     };
 
-    if (ambientOffset !== null) {
-      point.userAmbient = Math.round((p.ambient + ambientOffset) * 10) / 10;
+    if (hasAmbient) {
+      const ambOffset = interpolateOffset(epoch, ambDedupe);
+      point.userAmbient = Math.round((p.ambient + ambOffset) * 10) / 10;
+      if (propagateAmbToAsp) {
+        point.userAsphalt = Math.round((apiAsphalt + ambOffset) * 10) / 10;
+      }
     }
-    if (asphaltOffset !== null) {
-      point.userAsphalt = Math.round((apiAsphalt + asphaltOffset) * 10) / 10;
+    if (hasAsphalt) {
+      const aspOffset = interpolateOffset(epoch, aspDedupe);
+      point.userAsphalt = Math.round((apiAsphalt + aspOffset) * 10) / 10;
     }
 
     return point;

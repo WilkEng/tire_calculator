@@ -113,7 +113,8 @@ export function useWeatherForecast(
   }, [doFetch]);
 
   // Build chart data — recalculates when forecast points or overrides change
-  const chartData = buildChartData(forecastPoints, userOverrides);
+  // todayOnly=true so old overrides from a reopened event don't skew today's predictions
+  const chartData = buildChartData(forecastPoints, userOverrides, true);
   const hourlyCards = buildHourlyCards(forecastPoints);
 
   // Current conditions: find nearest forecast point to "now"

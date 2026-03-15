@@ -16,8 +16,8 @@ export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center gap-1 bg-gray-900/95 backdrop-blur-sm px-4 py-2 border-b border-gray-700/50 sticky top-0 z-50">
-      <Link href="/" className="flex items-center gap-2 mr-6">
+    <nav className="flex items-center gap-1 bg-gray-900/95 backdrop-blur-sm px-2 sm:px-4 py-2 border-b border-gray-700/50 sticky top-0 z-50 overflow-x-auto">
+      <Link href="/" className="flex items-center gap-2 mr-2 sm:mr-6 flex-shrink-0">
         <Image
           src="/tire_calculator/logo-white.svg"
           alt="Wilkinson Engineering"
@@ -39,7 +39,7 @@ export function AppNav() {
             key={item.href}
             href={item.href}
             className={`
-              px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-shrink-0
               ${
                 active
                   ? "bg-[#00d4aa]/15 text-[#00d4aa] border border-[#00d4aa]/20"
@@ -47,8 +47,8 @@ export function AppNav() {
               }
             `}
           >
-            <span className="mr-1">{item.icon}</span>
-            {item.label}
+            <span className="sm:mr-1">{item.icon}</span>
+            <span className="hidden sm:inline">{item.label}</span>
           </Link>
         );
       })}

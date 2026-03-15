@@ -659,9 +659,9 @@ export default function TemperatureAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold text-gray-100">Temperature Analysis</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
             📂 Load from History
           </Button>
@@ -683,9 +683,9 @@ export default function TemperatureAnalysisPage() {
         <Card title="Comparison Charts">
           <div className="space-y-4">
             {/* Line management header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-gray-400 uppercase font-medium">Comparison Lines</span>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
                 <Button variant="secondary" size="sm" onClick={() => setShowPyroPicker(true)}>
                   📂 History
                 </Button>

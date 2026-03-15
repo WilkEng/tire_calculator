@@ -144,17 +144,12 @@ export default function PlannerPage() {
 
   // --- Weather override handler ---
   const handleWeatherOverride = useCallback(
-    (field: "ambient" | "asphalt", value: number) => {
+    (field: "ambient" | "asphalt", value: number, measurementTime?: Date) => {
+      const timestamp = (measurementTime ?? new Date()).toISOString();
       if (field === "ambient") {
-        addUserWeatherOverride({
-          timestamp: new Date().toISOString(),
-          ambientOverride: value,
-        });
+        addUserWeatherOverride({ timestamp, ambientOverride: value });
       } else {
-        addUserWeatherOverride({
-          timestamp: new Date().toISOString(),
-          asphaltOverride: value,
-        });
+        addUserWeatherOverride({ timestamp, asphaltOverride: value });
       }
     },
     [addUserWeatherOverride]
@@ -338,7 +333,7 @@ export default function PlannerPage() {
   return (
     <div className="space-y-6">
       {/* -- Header bar -- */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold text-gray-100">Pressure Planner</h1>
         <div className="flex gap-2">
           <Button
@@ -379,7 +374,7 @@ export default function PlannerPage() {
               {/* -- Stint header -- */}
               <button
                 type="button"
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
+                className="w-full flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4 hover:bg-gray-800/50 transition-colors"
                 onClick={() => toggleStintCollapse(stint.id)}
               >
                 <div className="flex items-center gap-3">
