@@ -20,6 +20,8 @@ interface StintStartFlowProps {
   pressureUnit: string;
   /** Temperature unit for display */
   temperatureUnit: string;
+  /** Whether this is the first stint (only first stint can import) */
+  isFirstStint: boolean;
   /** Whether the baseline was imported (read-only mode) */
   isImported: boolean;
   /** Recommended cold pressures from the engine (if available from prior stint) */
@@ -52,6 +54,7 @@ export function StintStartFlow({
   stint,
   pressureUnit,
   temperatureUnit,
+  isFirstStint,
   isImported,
   recommendedColdPressures,
   weatherConditions,
@@ -179,32 +182,40 @@ export function StintStartFlow({
 
   return (
     <div className="bg-gray-800/60 border border-gray-700 rounded-lg overflow-hidden">
-      {/* Tab Header */}
-      <div className="flex border-b border-gray-700">
-        <button
-          className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "manual"
-              ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
-              : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
-          }`}
-          onClick={() => setActiveTab("manual")}
-        >
-          Manual Baseline
-        </button>
-        <button
-          className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "import"
-              ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
-              : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
-          }`}
-          onClick={() => setActiveTab("import")}
-        >
-          Import Baseline
-        </button>
-      </div>
+      {/* Tab Header — only show Import tab for first stint */}
+      {isFirstStint ? (
+        <div className="flex border-b border-gray-700">
+          <button
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "manual"
+                ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
+            }`}
+            onClick={() => setActiveTab("manual")}
+          >
+            Manual Baseline
+          </button>
+          <button
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "import"
+                ? "bg-gray-700 text-blue-400 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-750"
+            }`}
+            onClick={() => setActiveTab("import")}
+          >
+            Import Baseline
+          </button>
+        </div>
+      ) : (
+        <div className="flex border-b border-gray-700">
+          <div className="flex-1 px-4 py-2.5 text-sm font-medium bg-gray-700 text-blue-400 border-b-2 border-blue-500">
+            Stint Setup (based on previous stint)
+          </div>
+        </div>
+      )}
 
       <div className="p-4 space-y-5">
-        {activeTab === "import" ? (
+        {activeTab === "import" && isFirstStint ? (
           /* ──── Import Tab ──── */
           <div className="space-y-4">
             <p className="text-sm text-gray-400">

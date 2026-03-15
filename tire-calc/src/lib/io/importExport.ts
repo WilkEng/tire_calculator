@@ -5,7 +5,7 @@
 // Strict schema validation with graceful migration hooks.
 // ────────────────────────────────────────────────────────────────────
 
-import type { Session, AppSettings, StintBaseline } from "../domain/models";
+import type { Session, AppSettings, StintBaseline, PitstopEntry } from "../domain/models";
 import { SCHEMA_VERSION, APP_VERSION } from "../domain/models";
 
 // ─── Export Types ──────────────────────────────────────────────────
@@ -309,6 +309,7 @@ export function downloadCSV(csv: string, filename: string): void {
 export interface StintBaselineImportResult extends ImportResult {
   baseline?: StintBaseline;
   name?: string;
+  pitstops?: PitstopEntry[];
 }
 
 /**
@@ -366,6 +367,7 @@ export function importStintBaseline(json: string): StintBaselineImportResult {
     warnings,
     baseline: baseline as unknown as StintBaseline,
     name: typeof obj.name === "string" ? obj.name : undefined,
+    pitstops: Array.isArray(obj.pitstops) ? (obj.pitstops as PitstopEntry[]) : undefined,
   };
 }
 

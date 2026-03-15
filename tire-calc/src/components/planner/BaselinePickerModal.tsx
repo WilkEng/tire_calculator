@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { getAllSessions } from "@/lib/persistence/db";
-import type { Session, Stint, StintBaseline, Corner } from "@/lib/domain/models";
+import type { Session, Stint, StintBaseline, PitstopEntry, Corner } from "@/lib/domain/models";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface BaselinePickerModalProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (baseline: StintBaseline, sessionName: string, stintName: string) => void;
+  onSelect: (baseline: StintBaseline, sessionName: string, stintName: string, pitstops?: PitstopEntry[]) => void;
   pressureUnit: string;
 }
 
@@ -53,7 +53,7 @@ export function BaselinePickerModal({
 
   const handleSelectStint = useCallback(
     (session: Session, stint: Stint) => {
-      onSelect(stint.baseline, session.name, stint.name);
+      onSelect(stint.baseline, session.name, stint.name, stint.pitstops);
       onClose();
     },
     [onSelect, onClose]
@@ -169,6 +169,9 @@ export function BaselinePickerModal({
                                     <div className="text-xs text-gray-500 flex gap-3 mt-0.5">
                                       <span>
                                         Mode: {stint.baseline.targetMode}
+                                      </span>
+                                      <span>
+                                        {stint.pitstops?.length ?? 0} pitstop{(stint.pitstops?.length ?? 0) !== 1 ? "s" : ""}
                                       </span>
                                       {stint.baseline.ambientMeasured != null && (
                                         <span>

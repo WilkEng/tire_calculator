@@ -74,19 +74,20 @@ export default function PlannerPage() {
     [createNewSession]
   );
 
-  // --- Export baseline as JSON ---
+  // --- Export baseline + pitstops as JSON ---
   const handleExportBaseline = useCallback((stint: Stint) => {
     const exportData = {
-      version: 1,
+      version: 2,
       type: "stint-baseline",
       name: stint.name,
       baseline: stint.baseline,
+      pitstops: stint.pitstops ?? [],
     };
     const json = JSON.stringify(exportData, null, 2);
     downloadJSON(json, `baseline-${stint.name || "export"}.json`);
   }, []);
 
-  // --- Import baseline from file ---
+  // --- Import baseline + pitstops from file ---
   const handleImportBaseline = useCallback(
     (stintId: string, file: File) => {
       const reader = new FileReader();
@@ -102,7 +103,8 @@ export default function PlannerPage() {
             stintId,
             result.baseline!,
             result.name,
-            result.name
+            result.name,
+            result.pitstops
           );
         } catch (err) {
           alert("Failed to import baseline: " + String(err));
@@ -113,15 +115,16 @@ export default function PlannerPage() {
     [importBaselineToStint]
   );
 
-  // --- Pick baseline from history ---
+  // --- Pick baseline + pitstops from history ---
   const handlePickBaseline = useCallback(
-    (baseline: StintBaseline, sessionName: string, stintName: string) => {
+    (baseline: StintBaseline, sessionName: string, stintName: string, pitstops?: import("@/lib/domain/models").PitstopEntry[]) => {
       if (!baselinePickerStintId) return;
       importBaselineToStint(
         baselinePickerStintId,
         baseline,
         sessionName,
-        stintName
+        stintName,
+        pitstops
       );
       setBaselinePickerStintId(null);
     },
@@ -406,6 +409,7 @@ export default function PlannerPage() {
                     stint={stint}
                     pressureUnit={settings.unitsPressure}
                     temperatureUnit={settings.unitsTemperature}
+                    isFirstStint={stintIdx === 0}
                     isImported={!!stint.importedBaseline}
                     recommendedColdPressures={
                       nextStintRec?.recommendedColdPressures

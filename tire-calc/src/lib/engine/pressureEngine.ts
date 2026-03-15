@@ -13,7 +13,10 @@
 //   conditionCorrection = effectiveTempDelta * kTemp
 //   effectiveTempDelta  = (ambientNext - ambientRef) * kAmbient
 //                       + (asphaltNext - asphaltRef) * kTrack
-//                       + (startTireNext - startTireRef) * 1.0
+//                       - (startTireNext - startTireRef) * 1.0
+//
+// Note: tire temp term is SUBTRACTED because warmer tires = less heat
+// rise during the stint = need MORE cold pressure (opposite of ambient/asphalt).
 //
 // Cold pressures live on the stint baseline.
 // Pitstop records only carry hot and bled pressures.
@@ -326,9 +329,13 @@ export function computeEffectiveTempDelta(
   nextStartTire: number,
   coefficients: EngineCoefficients
 ): number {
+  // Ambient/asphalt: warmer environment → tire heats MORE → need LESS cold pressure (positive contribution)
+  // Tire start temp: warmer tire → LESS temperature rise → need MORE cold pressure (negative contribution)
+  // The tire term is SUBTRACTED because it has the OPPOSITE effect of ambient/asphalt:
+  //   Higher cold tire temp → smaller heat rise → less pressure gain → need higher cold start
   return (
     (nextAmbient - refAmbient) * coefficients.kAmbient +
-    (nextAsphalt - refAsphalt) * coefficients.kTrack +
+    (nextAsphalt - refAsphalt) * coefficients.kTrack -
     (nextStartTire - refStartTire) * 1.0
   );
 }

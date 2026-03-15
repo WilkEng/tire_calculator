@@ -57,12 +57,13 @@ interface SessionContextValue {
   updateStintBaseline: (stintId: string, updates: Partial<StintBaseline>) => void;
   /** Update stint core fields (e.g. name) */
   updateStint: (stintId: string, updates: Partial<Stint>) => void;
-  /** Import a baseline into a stint (marks it as imported, disables editing) */
+  /** Import a baseline (and optionally pitstops) into a stint */
   importBaselineToStint: (
     stintId: string,
     baseline: StintBaseline,
     sourceSessionName?: string,
-    sourceStintName?: string
+    sourceStintName?: string,
+    pitstops?: PitstopEntry[]
   ) => void;
 
   /** Add a new pitstop to a stint */
@@ -370,13 +371,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  /** Import a baseline into a stint — marks it as imported (read-only). */
+  /** Import a baseline (and optionally pitstops) into a stint — marks as imported. */
   const importBaselineToStint = useCallback(
     (
       stintId: string,
       baseline: StintBaseline,
       sourceSessionName?: string,
-      sourceStintName?: string
+      sourceStintName?: string,
+      pitstops?: PitstopEntry[]
     ) => {
       setSessionState((prev) => {
         if (!prev) return prev;
@@ -385,6 +387,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             ? {
                 ...s,
                 baseline: { ...baseline },
+                pitstops: pitstops ?? s.pitstops,
                 importedBaseline: {
                   sourceSessionName,
                   sourceStintName,
