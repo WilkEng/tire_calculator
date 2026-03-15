@@ -1,249 +1,99 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSessionContext } from "@/context/SessionContext";
+import { getAllSessions, clearHistory, deleteSession } from "@/lib/persistence/db";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import {
-  getAllSessions,
-  deleteSession as dbDeleteSession,
-  saveSession,
-  replaceAllSessions,
-  loadSettings,
-  saveSettings,
-} from "@/lib/persistence/db";
-import {
-  exportSession,
-  exportFullBackup,
-  importSession,
-  importFullBackup,
-  exportSessionCSV,
-  toJSON,
-  downloadJSON,
-  downloadCSV,
-  readFileAsText,
-} from "@/lib/io/importExport";
+import Link from "next/link";
 import type { Session } from "@/lib/domain/models";
-import { createSession } from "@/lib/domain/factories";
 
 export default function HistoryPage() {
-  const { session: activeSession, setSession, settings } = useSessionContext();
+  const { setSession } = useSessionContext();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [message, setMessage] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  const loadSessions = useCallback(async () => {
-    const all = await getAllSessions();
-    setSessions(all);
-  }, []);
+  const loadSessions = async () => {
+    try {
+      const data = await getAllSessions();
+      setSessions(data.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
+  }, []);
 
-  const showMessage = (msg: string) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(""), 4000);
+  const handleClearHistory = async () => {
+    if (!confirm("Are you sure you want to delete all history?")) return;
+    await clearHistory();
+    setSessions([]);
   };
 
-  // ── Open session ──
-  const handleOpen = (s: Session) => {
+  const handleDeleteSession = async (id: string) => {
+    if (!confirm("Delete this session?")) return;
+    await deleteSession(id);
+    await loadSessions();
+  };
+
+  const handleLoadSession = (s: Session) => {
     setSession(s);
-    showMessage(`Loaded session: ${s.name}`);
-  };
-
-  // ── Clone session ──
-  const handleClone = async (s: Session) => {
-    const cloned = createSession({
-      name: `${s.name} (copy)`,
-      trackName: s.trackName,
-      location: s.location,
-      latitude: s.latitude,
-      longitude: s.longitude,
-      pitstops: [],
-      weatherSnapshots: [],
-      temperatureRuns: [],
-      recommendationHistory: [],
-      notes: s.notes,
-      setupTags: s.setupTags,
-      compoundPreset: s.compoundPreset,
-    });
-    await saveSession(cloned);
-    await loadSessions();
-    showMessage(`Cloned session: ${cloned.name}`);
-  };
-
-  // ── Delete session ──
-  const handleDelete = async (s: Session) => {
-    if (!confirm(`Delete session "${s.name}"? This cannot be undone.`)) return;
-    await dbDeleteSession(s.id);
-    // If it was the active session, clear it
-    if (activeSession?.id === s.id) {
-      setSession(null as unknown as Session); // clear
-    }
-    await loadSessions();
-    showMessage(`Deleted session: ${s.name}`);
-  };
-
-  // ── Export single session ──
-  const handleExportSession = (s: Session) => {
-    const data = exportSession(s);
-    const json = toJSON(data);
-    const filename = `tire-calc-session-${s.name.replace(/\s+/g, "-")}-${s.date}.json`;
-    downloadJSON(json, filename);
-    showMessage(`Exported: ${filename}`);
-  };
-
-  // ── Export full backup ──
-  const handleExportBackup = async () => {
-    const all = await getAllSessions();
-    const currentSettings = await loadSettings();
-    const data = exportFullBackup(all, currentSettings);
-    const json = toJSON(data);
-    const filename = `tire-calc-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    downloadJSON(json, filename);
-    showMessage(`Exported full backup: ${filename}`);
-  };
-
-  // ── CSV export ──
-  const handleExportCSV = (s: Session) => {
-    const csv = exportSessionCSV(s);
-    const filename = `tire-calc-session-${s.name.replace(/\s+/g, "-")}-${s.date}.csv`;
-    downloadCSV(csv, filename);
-    showMessage(`Exported CSV: ${filename}`);
-  };
-
-  // ── Import ──
-  const handleImport = async () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const text = await readFileAsText(file);
-
-      // Try session import first
-      const sessionResult = importSession(text);
-      if (sessionResult.success && sessionResult.session) {
-        await saveSession(sessionResult.session);
-        await loadSessions();
-        showMessage(
-          `Imported session: ${sessionResult.session.name}` +
-            (sessionResult.warnings.length > 0
-              ? ` (${sessionResult.warnings.join("; ")})`
-              : "")
-        );
-        return;
-      }
-
-      // Try full backup import
-      const backupResult = importFullBackup(text);
-      if (backupResult.success && backupResult.sessions && backupResult.settings) {
-        await replaceAllSessions(backupResult.sessions);
-        await saveSettings(backupResult.settings);
-        await loadSessions();
-        showMessage(
-          `Imported full backup: ${backupResult.sessions.length} sessions` +
-            (backupResult.warnings.length > 0
-              ? ` (${backupResult.warnings.join("; ")})`
-              : "")
-        );
-        return;
-      }
-
-      // Show errors
-      const errors = [
-        ...(sessionResult.errors ?? []),
-        ...(backupResult.errors ?? []),
-      ];
-      showMessage(`Import failed: ${errors.join("; ")}`);
-    };
-    input.click();
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-100">Data & History</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleImport}>
-            Import JSON
-          </Button>
-          <Button variant="secondary" size="sm" onClick={handleExportBackup}>
-            Export Full Backup
-          </Button>
-        </div>
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-100">Session History</h1>
+        <Button variant="secondary" onClick={handleClearHistory}>
+          Clear History
+        </Button>
       </div>
 
-      {message && (
-        <div className="bg-blue-900/40 border border-blue-700 rounded px-4 py-2 text-sm text-blue-200">
-          {message}
-        </div>
-      )}
-
-      {sessions.length === 0 ? (
+      {isLoading ? (
+        <p className="text-gray-400">Loading...</p>
+      ) : sessions.length === 0 ? (
         <Card>
-          <p className="text-sm text-gray-400 text-center py-8">
-            No saved sessions. Create one from the Planner or import a file.
-          </p>
+          <div className="text-center py-10">
+            <p className="text-gray-400 mb-4">No saved sessions yet.</p>
+            <Link href="/planner">
+              <Button>Start Planner</Button>
+            </Link>
+          </div>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-4">
           {sessions.map((s) => (
-            <Card key={s.id} className={activeSession?.id === s.id ? "ring-1 ring-blue-500" : ""}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-gray-200 truncate">
-                      {s.name || "Unnamed Session"}
-                    </h3>
-                    {activeSession?.id === s.id && (
-                      <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded uppercase">
-                        Active
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-3 text-xs text-gray-500 mt-1">
-                    <span>{s.trackName || "No track"}</span>
-                    <span>{s.date}</span>
-                    <span>{s.pitstops.length} pitstop(s)</span>
-                    {s.compoundPreset && <span>{s.compoundPreset}</span>}
-                  </div>
+            <Card key={s.id} className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-200">
+                  {s.name || "Unnamed Session"}
+                </h3>
+                <div className="text-sm text-gray-400 space-y-1">
+                  <p>Track: {s.trackName || "Unknown"}</p>
+                  <p>{new Date(s.date).toLocaleDateString()}</p>
+                  <span>{s.stints.length} stint(s), {s.stints.flatMap(st => st.pitstops).length} pitstop(s)</span>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <Button size="sm" onClick={() => handleOpen(s)}>
-                    Open
-                  </Button>
+              </div>
+              <div className="flex flex-col gap-2 justify-center">
+                <Link href="/dashboard">
                   <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleClone(s)}
+                    className="w-full"
+                    onClick={() => handleLoadSession(s)}
                   >
-                    Clone
+                    Load into active
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleExportSession(s)}
-                  >
-                    JSON
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleExportCSV(s)}
-                  >
-                    CSV
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDelete(s)}
-                  >
-                    Delete
-                  </Button>
-                </div>
+                </Link>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => handleDeleteSession(s.id)}
+                >
+                  Delete
+                </Button>
               </div>
             </Card>
           ))}

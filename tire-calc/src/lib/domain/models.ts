@@ -95,49 +95,42 @@ export interface RecommendationOutput {
   coefficientsUsed: CoefficientsUsed;
 }
 
-// ─── Session Start Baseline ────────────────────────────────────────
+// ─── Stint Baseline ────────────────────────────────────────────────
 //
-// The starting conditions BEFORE the first stint.
-// Cold pressures live here, not on pitstops.
+// The starting conditions BEFORE a stint.
+// Target hot pressures, Cold pressures, and Weather live here.
 
-export interface SessionStartBaseline {
-  /** Cold pressures set before the first stint */
+export interface StintBaseline {
+  /** Cold pressures set before the stint */
   coldPressures?: PartialCornerValues;
   /** Optional starting tire temperatures */
   startTireTemps?: PartialCornerValues;
-  /** Optional measured ambient temperature at session start */
+  
+  /** How the targets are specified for this stint */
+  targetMode: TargetMode;
+  /** Target hot pressure values */
+  targets: Targets;
+
+  /** Optional measured/forecast ambient temperature at stint start */
   ambientMeasured?: number;
-  /** Optional measured asphalt/track temperature at session start */
+  /** Optional measured/forecast asphalt/track temperature at stint start */
   asphaltMeasured?: number;
-  /** Optional forecast ambient temperature at session start */
-  ambientForecast?: number;
-  /** Optional forecast asphalt temperature at session start */
-  asphaltForecast?: number;
-  /** Notes for the session start */
-  notes?: string;
 }
 
 // ─── Pitstop Entry ─────────────────────────────────────────────────
 //
 // Pitstops record data from when the car comes in.
-// Cold pressures are NOT stored here — they live in the session
-// baseline (for stint 1) or in the prior pitstop's recommendation
-// output (for subsequent stints).
+// Targets, Weather, and Cold pressures are NO LONGER stored here.
 
 export interface PitstopEntry {
   id: string;
-  /** 1-based index within the session */
+  /** 1-based index within the stint */
   index: number;
 
   /** When the stint before this pitstop was planned to start */
   plannedStintStartTime?: string; // ISO 8601
   /** When the car actually came in */
   actualPitstopTime?: string; // ISO 8601
-
-  /** How the targets are specified for this pitstop */
-  targetMode: TargetMode;
-  /** Target values */
-  targets: Targets;
 
   // ── Pressures (pitstop-only data) ──
   /** Hot pressures as measured when the car comes in */
@@ -160,11 +153,21 @@ export interface PitstopEntry {
   /** Freeform notes */
   notes?: string;
 
-  /** If this pitstop was seeded from a prior session stint */
-  sourceSessionReferenceId?: string;
-
-  /** Engine output for this pitstop */
+  /** Engine output for this pitstop (predicting next stint) */
   recommendationOutput?: RecommendationOutput;
+}
+
+// ─── Stint ─────────────────────────────────────────────────────────
+
+export interface Stint {
+  id: string;
+  name: string; // e.g. 'FP1', 'Q1', 'Race'
+  
+  /** The starting conditions and targets for this stint */
+  baseline: StintBaseline;
+
+  /** The pitstops that occurred during this stint */
+  pitstops: PitstopEntry[];
 }
 
 // ─── Temperature Run ───────────────────────────────────────────────
@@ -217,13 +220,12 @@ export interface Session {
   setupTags?: string[];
   compoundPreset?: string;
 
-  /** Session start baseline: cold pressures, optional conditions */
-  baseline?: SessionStartBaseline;
-
   createdAt: string;  // ISO 8601
   updatedAt: string;  // ISO 8601
 
-  pitstops: PitstopEntry[];
+  /** Each session consists of multiple stints (e.g., FP1, Quali). */
+  stints: Stint[];
+
   weatherSnapshots: WeatherSnapshot[];
   temperatureRuns: TemperatureRun[];
   recommendationHistory: RecommendationOutput[];

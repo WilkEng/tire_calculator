@@ -1,128 +1,55 @@
 "use client";
 
-import type { SessionStartBaseline } from "@/lib/domain/models";
-import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
+import type { Session } from "@/lib/domain/models";
 
 interface SessionStartCardProps {
-  baseline: SessionStartBaseline;
-  onUpdate: (updates: Partial<SessionStartBaseline>) => void;
-  pressureUnit: string;
-  temperatureUnit: string;
+  session: Session;
+  onUpdate: (updates: Partial<Session>) => void;
 }
 
 export function SessionStartCard({
-  baseline,
+  session,
   onUpdate,
-  pressureUnit,
-  temperatureUnit,
 }: SessionStartCardProps) {
-  const updateColdCorner = (corner: string, value: number | undefined) => {
-    onUpdate({
-      coldPressures: { ...baseline.coldPressures, [corner]: value },
-    });
-  };
-
-  const updateTireTempCorner = (corner: string, value: number | undefined) => {
-    onUpdate({
-      startTireTemps: { ...baseline.startTireTemps, [corner]: value },
-    });
-  };
-
   return (
-    <Card title="Session Start — Baseline" className="border-green-800">
-      {/* ── Cold Start Pressures ── */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">
-          Cold Start Pressures
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(["FL", "FR", "RL", "RR"] as const).map((c) => (
-            <NumericInput
-              key={c}
-              label={c}
-              unit={pressureUnit}
-              value={baseline.coldPressures?.[c]}
-              onChange={(v) => updateColdCorner(c, v)}
+    <Card title="Session Setup">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="flex flex-col gap-1 text-sm text-gray-300">
+            <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+              Track Name
+            </span>
+            <input
+              type="text"
+              value={session.trackName}
+              onChange={(e) => onUpdate({ trackName: e.target.value })}
+              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none"
+              placeholder="e.g. Spa-Francorchamps"
             />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Optional Conditions ── */}
-      <div className="mt-5">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">
-          Starting Conditions
-          <span className="text-gray-500 ml-2 normal-case font-normal">
-            (optional — manual entry overrides forecast)
-          </span>
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <NumericInput
-            label="Ambient"
-            unit={`°${temperatureUnit}`}
-            value={baseline.ambientMeasured}
-            onChange={(v) => onUpdate({ ambientMeasured: v })}
-          />
-          <NumericInput
-            label="Asphalt"
-            unit={`°${temperatureUnit}`}
-            value={baseline.asphaltMeasured}
-            onChange={(v) => onUpdate({ asphaltMeasured: v })}
-          />
-          <NumericInput
-            label="Amb. Forecast"
-            unit={`°${temperatureUnit}`}
-            value={baseline.ambientForecast}
-            onChange={(v) => onUpdate({ ambientForecast: v })}
-          />
-          <NumericInput
-            label="Asph. Forecast"
-            unit={`°${temperatureUnit}`}
-            value={baseline.asphaltForecast}
-            onChange={(v) => onUpdate({ asphaltForecast: v })}
-          />
-        </div>
-      </div>
-
-      {/* ── Optional Starting Tire Temps ── */}
-      <div className="mt-5">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">
-          Starting Tire Temps
-          <span className="text-gray-500 ml-2 normal-case font-normal">
-            (optional)
-          </span>
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(["FL", "FR", "RL", "RR"] as const).map((c) => (
-            <NumericInput
-              key={c}
-              label={c}
-              unit={`°${temperatureUnit}`}
-              value={baseline.startTireTemps?.[c]}
-              onChange={(v) => updateTireTempCorner(c, v)}
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-gray-300">
+            <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+              Compound Preset
+            </span>
+            <input
+              type="text"
+              value={session.compoundPreset || ""}
+              onChange={(e) => onUpdate({ compoundPreset: e.target.value })}
+              className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none"
+              placeholder="e.g. Slick (Medium)"
             />
-          ))}
+          </label>
         </div>
-      </div>
-
-      {/* ── Notes ── */}
-      <div className="mt-5">
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1 text-sm text-gray-300">
           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-            Session Start Notes
+            Notes
           </span>
           <textarea
-            value={baseline.notes ?? ""}
+            value={session.notes || ""}
             onChange={(e) => onUpdate({ notes: e.target.value })}
-            rows={2}
-            className="
-              bg-gray-800 border border-gray-600 rounded px-3 py-2
-              text-sm text-white resize-y
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-              placeholder-gray-500
-            "
-            placeholder="Baseline notes..."
+            className="bg-gray-800 border fill-gray-800 border-gray-600 rounded px-3 py-1.5 focus:border-blue-500 focus:outline-none min-h-[60px]"
+            placeholder="Track conditions, goals..."
           />
         </label>
       </div>

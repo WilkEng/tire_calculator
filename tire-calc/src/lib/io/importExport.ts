@@ -233,6 +233,7 @@ export function importFullBackup(json: string): FullBackupImportResult {
 /** Export a session's pitstop data as CSV for spreadsheet analysis */
 export function exportSessionCSV(session: Session): string {
   const headers = [
+    "Stint",
     "Pitstop",
     "Stint Start",
     "Pitstop Time",
@@ -256,32 +257,36 @@ export function exportSessionCSV(session: Session): string {
     "Notes",
   ];
 
-  const baseline = session.baseline;
-
-  const rows = session.pitstops.map((p) => [
-    p.index,
-    p.plannedStintStartTime ?? "",
-    p.actualPitstopTime ?? "",
-    p.targetMode,
-    // Baseline cold pressures (same for all rows – session-level)
-    p.index === 1 ? (baseline?.coldPressures?.FL ?? "") : "",
-    p.index === 1 ? (baseline?.coldPressures?.FR ?? "") : "",
-    p.index === 1 ? (baseline?.coldPressures?.RL ?? "") : "",
-    p.index === 1 ? (baseline?.coldPressures?.RR ?? "") : "",
-    p.hotMeasuredPressures?.FL ?? "",
-    p.hotMeasuredPressures?.FR ?? "",
-    p.hotMeasuredPressures?.RL ?? "",
-    p.hotMeasuredPressures?.RR ?? "",
-    p.hotCorrectedPressures?.FL ?? p.hotMeasuredPressures?.FL ?? "",
-    p.hotCorrectedPressures?.FR ?? p.hotMeasuredPressures?.FR ?? "",
-    p.hotCorrectedPressures?.RL ?? p.hotMeasuredPressures?.RL ?? "",
-    p.hotCorrectedPressures?.RR ?? p.hotMeasuredPressures?.RR ?? "",
-    p.recommendationOutput?.recommendedColdPressures?.FL ?? "",
-    p.recommendationOutput?.recommendedColdPressures?.FR ?? "",
-    p.recommendationOutput?.recommendedColdPressures?.RL ?? "",
-    p.recommendationOutput?.recommendedColdPressures?.RR ?? "",
-    `"${(p.notes ?? "").replace(/"/g, '""')}"`,
-  ]);
+  const rows: (string | number)[][] = [];
+  (session.stints || []).forEach(stint => {
+    const baseline = stint.baseline;
+    (stint.pitstops || []).forEach((p, idx) => {
+      rows.push([
+        stint.name || "",
+        idx,
+        p.plannedStintStartTime ?? "",
+        p.actualPitstopTime ?? "",
+        baseline?.targetMode ?? "single",
+        idx === 0 ? (baseline?.coldPressures?.FL ?? "") : "",
+        idx === 0 ? (baseline?.coldPressures?.FR ?? "") : "",
+        idx === 0 ? (baseline?.coldPressures?.RL ?? "") : "",
+        idx === 0 ? (baseline?.coldPressures?.RR ?? "") : "",
+        p.hotMeasuredPressures?.FL ?? "",
+        p.hotMeasuredPressures?.FR ?? "",
+        p.hotMeasuredPressures?.RL ?? "",
+        p.hotMeasuredPressures?.RR ?? "",
+        p.hotCorrectedPressures?.FL ?? p.hotMeasuredPressures?.FL ?? "",
+        p.hotCorrectedPressures?.FR ?? p.hotMeasuredPressures?.FR ?? "",
+        p.hotCorrectedPressures?.RL ?? p.hotMeasuredPressures?.RL ?? "",
+        p.hotCorrectedPressures?.RR ?? p.hotMeasuredPressures?.RR ?? "",
+        p.recommendationOutput?.recommendedColdPressures?.FL ?? "",
+        p.recommendationOutput?.recommendedColdPressures?.FR ?? "",
+        p.recommendationOutput?.recommendedColdPressures?.RL ?? "",
+        p.recommendationOutput?.recommendedColdPressures?.RR ?? "",
+        `"${(p.notes ?? "").replace(/"/g, '""')}"`,
+      ]);
+    });
+  });
 
   return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 }

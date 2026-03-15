@@ -12,21 +12,22 @@ export default function DashboardPage() {
   const { session, settings, createNewSession } = useSessionContext();
 
   const recommendation: RecommendationOutput | null = useMemo(() => {
-    if (!session || session.pitstops.length < 1) return null;
-    const latest = session.pitstops[session.pitstops.length - 1];
+    if (!session || !session.stints || session.stints.length < 1) return null;
+    const latestStint = session.stints[session.stints.length - 1];
+    if (!latestStint.pitstops || latestStint.pitstops.length === 0) return null;
+    const latestPitstop = latestStint.pitstops[latestStint.pitstops.length - 1];
 
     const input: RecommendationInput = {
       currentSession: session,
-      currentPitstopIndex: latest.index,
+      currentStintId: latestStint.id,
+      currentPitstopId: latestPitstop.id,
       nextConditions: {
-        ambientTemp:
-          session.baseline?.ambientForecast ?? session.baseline?.ambientMeasured ?? 20,
-        asphaltTemp:
-          session.baseline?.asphaltForecast ?? session.baseline?.asphaltMeasured ?? 30,
-        startTireTemps: session.baseline?.startTireTemps,
+        ambientTemp: latestStint.baseline?.ambientMeasured ?? 20,
+        asphaltTemp: latestStint.baseline?.asphaltMeasured ?? 30,
+        startTireTemps: latestStint.baseline?.startTireTemps,
       },
-      targetMode: latest.targetMode,
-      targets: latest.targets,
+      targetMode: latestStint.baseline?.targetMode ?? "single",
+      targets: latestStint.baseline?.targets ?? {},
       priorSessions: [],
       settings,
     };
@@ -38,7 +39,8 @@ export default function DashboardPage() {
     }
   }, [session, settings]);
 
-  const latestPitstop = session?.pitstops[session.pitstops.length - 1];
+  const latestStint = session?.stints?.[session.stints.length - 1];
+  const latestPitstop = latestStint?.pitstops?.[latestStint.pitstops.length - 1];
 
   return (
     <div className="space-y-6">
@@ -60,7 +62,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* ── Next Cold Recommendation Summary ── */}
+          {/* -- Next Cold Recommendation Summary -- */}
           <Card title="Next Cold Recommendation" className="md:col-span-2 xl:col-span-1">
             {recommendation ? (
               <div className="space-y-3">
@@ -88,117 +90,56 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* ── Current / Forecast Ambient ── */}
+          {/* -- Current / Forecast Ambient -- */}
           <Card title="Ambient & Asphalt">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-gray-400 mb-1">Ambient</div>
                 <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                  {session.baseline?.ambientMeasured?.toFixed(1) ?? "—"}
+                  {latestStint?.baseline?.ambientMeasured?.toFixed(1) ?? "�"}
                   <span className="text-sm text-gray-500 ml-1">
-                    °{settings.unitsTemperature}
+                    �{settings.unitsTemperature}
                   </span>
                 </div>
-                {session.baseline?.ambientForecast != null && (
-                  <div className="text-xs text-gray-500">
-                    Forecast:{" "}
-                    {session.baseline.ambientForecast.toFixed(1)}°
-                    {settings.unitsTemperature}
-                  </div>
-                )}
               </div>
               <div>
                 <div className="text-xs text-gray-400 mb-1">Asphalt</div>
                 <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                  {session.baseline?.asphaltMeasured?.toFixed(1) ?? "—"}
+                  {latestStint?.baseline?.asphaltMeasured?.toFixed(1) ?? "�"}
                   <span className="text-sm text-gray-500 ml-1">
-                    °{settings.unitsTemperature}
+                    �{settings.unitsTemperature}
                   </span>
                 </div>
-                {session.baseline?.asphaltForecast != null && (
-                  <div className="text-xs text-gray-500">
-                    Forecast:{" "}
-                    {session.baseline.asphaltForecast.toFixed(1)}°
-                    {settings.unitsTemperature}
-                  </div>
-                )}
               </div>
             </div>
           </Card>
 
-          {/* ── Session Status ── */}
+          {/* -- Session Status -- */}
           <Card title="Session Status">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Session</span>
-                <span className="text-gray-200">{session.name || "Unnamed"}</span>
+                <span className="text-gray-400">Total Pitstops</span>
+                <span className="text-gray-200 font-medium">
+                  {session.stints?.reduce((acc, s) => acc + s.pitstops.length, 0) || 0}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Track</span>
-                <span className="text-gray-200">
-                  {session.trackName || "Not set"}
+                <span className="text-gray-200 font-medium">
+                  {session.trackName || "�"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Date</span>
-                <span className="text-gray-200">{session.date}</span>
+                <span className="text-gray-200 font-medium">
+                  {session.date ? new Date(session.date).toLocaleDateString() : "�"}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Pitstops</span>
-                <span className="text-gray-200">{session.pitstops.length}</span>
-              </div>
-              {session.compoundPreset && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Compound</span>
-                  <span className="text-gray-200">
-                    {session.compoundPreset}
-                  </span>
-                </div>
-              )}
             </div>
-          </Card>
-
-          {/* ── Last Pitstop Result ── */}
-          <Card title="Last Pitstop Result">
-            {latestPitstop?.hotMeasuredPressures &&
-            Object.keys(latestPitstop.hotMeasuredPressures).length > 0 ? (
-              <div className="grid grid-cols-4 gap-2">
-                {(["FL", "FR", "RL", "RR"] as const).map((c) => (
-                  <div key={c} className="text-center">
-                    <div className="text-xs text-gray-400">{c}</div>
-                    <div className="text-sm text-gray-300 tabular-nums">
-                      Hot:{" "}
-                      {latestPitstop.hotMeasuredPressures?.[c]?.toFixed(3) ??
-                        "—"}
-                    </div>
-                    {latestPitstop.hotCorrectedPressures?.[c] != null && (
-                      <div className="text-xs text-yellow-400 tabular-nums">
-                        Corr:{" "}
-                        {latestPitstop.hotCorrectedPressures[c]!.toFixed(3)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No pitstop data yet.</p>
-            )}
-          </Card>
-
-          {/* ── Quick Actions ── */}
-          <Card title="Quick Actions">
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
               <Link href="/planner">
-                <Button size="sm">Go to Planner</Button>
-              </Link>
-              <Link href="/history">
                 <Button variant="secondary" size="sm">
-                  Export Session
-                </Button>
-              </Link>
-              <Link href="/history">
-                <Button variant="secondary" size="sm">
-                  Import Session
+                  Go to Planner ?
                 </Button>
               </Link>
             </div>

@@ -15,14 +15,14 @@
 //                       + (asphaltNext - asphaltRef) * kTrack
 //                       + (startTireNext - startTireRef) * 1.0
 //
-// Cold pressures live on the session baseline (stint 1) or are
-// derived from the prior pitstop's recommendation output (stint N>1).
+// Cold pressures live on the stint baseline.
 // Pitstop records only carry hot and bled pressures.
 // ────────────────────────────────────────────────────────────────────
 
 import {
   type AppSettings,
   type Session,
+  type Stint,
   type PitstopEntry,
   type CornerValues,
   type PartialCornerValues,
@@ -54,6 +54,7 @@ export interface EngineCoefficients {
 
 /** A lightweight struct describing a usable reference stint */
 export interface ResolvedReference {
+  stint: Stint;
   pitstop: PitstopEntry;
   /** The cold pressures that were used at the START of this stint */
   coldPressures: PartialCornerValues;
@@ -77,42 +78,25 @@ const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 // ─── Cold Pressure Resolution ──────────────────────────────────────
 
 /**
- * Resolve the cold pressures that were (or would be) used for a given
- * pitstop/stint within a session.
- *
- * - Stint 1 (pitstopIndex === 1): session.baseline.coldPressures
- * - Stint N > 1: prior pitstop's recommendationOutput.recommendedColdPressures
- * - Fallback: session.baseline.coldPressures (approximation)
+ * Resolve the cold pressures that were used for a given stint.
+ * Now simply retrieves from the stint's baseline.
  */
 export function getColdForStint(
-  session: Session,
-  pitstopIndex: number
+  stint: Stint
 ): PartialCornerValues | undefined {
-  if (pitstopIndex === 1) {
-    return session.baseline?.coldPressures;
-  }
-  // Look for the prior pitstop's recommendation
-  const priorPitstop = session.pitstops.find(
-    (p) => p.index === pitstopIndex - 1
-  );
-  if (priorPitstop?.recommendationOutput?.recommendedColdPressures) {
-    return priorPitstop.recommendationOutput.recommendedColdPressures;
-  }
-  // Fallback: use baseline cold (best available approximation)
-  return session.baseline?.coldPressures;
+  return stint.baseline?.coldPressures;
 }
 
 /**
- * Get the reference conditions (ambient, asphalt, tire temps) for a session.
- * Uses baseline measured values → baseline forecast → undefined.
+ * Get the reference conditions (ambient, asphalt, tire temps) for a stint.
  */
 export function getBaselineConditions(
-  session: Session
+  stint: Stint
 ): { ambient?: number; asphalt?: number; startTireTemps?: PartialCornerValues } {
-  const baseline = session.baseline;
+  const baseline = stint.baseline;
   return {
-    ambient: baseline?.ambientMeasured ?? baseline?.ambientForecast,
-    asphalt: baseline?.asphaltMeasured ?? baseline?.asphaltForecast,
+    ambient: baseline?.ambientMeasured,
+    asphalt: baseline?.asphaltMeasured,
     startTireTemps: baseline?.startTireTemps,
   };
 }
@@ -120,15 +104,16 @@ export function getBaselineConditions(
 // ─── Helpers: extract target hot pressure per corner ───────────────
 
 /**
- * For a given pitstop, determine the effective hot target per corner.
+ * For a given pitstop in a stint, determine the effective hot target per corner.
  * Hierarchy: hotCorrectedPressure > targetHotPressure (from Targets).
  *
  * Bled/corrected pressures default to hot measured when undefined.
  */
 export function getEffectiveTargetPerCorner(
+  stint: Stint,
   pitstop: PitstopEntry
 ): CornerValues {
-  const base = expandTargets(pitstop.targetMode, pitstop.targets);
+  const base = expandTargets(stint.baseline.targetMode, stint.baseline.targets);
   const bled = getEffectiveBledPressures(pitstop);
 
   return {
@@ -177,6 +162,8 @@ export function expandTargets(
       const ct = targets.cornerTargets ?? { FL: 0, FR: 0, RL: 0, RR: 0 };
       return { FL: ct.FL, FR: ct.FR, RL: ct.RL, RR: ct.RR };
     }
+    default:
+      return { FL: 0, FR:0, RL:0, RR:0 };
   }
 }
 
@@ -190,30 +177,45 @@ export function expandTargets(
  *   2. Same session, nearest previous stint
  *   3. Prior session, same track & same target mode
  *   4. Prior session, same track
- *   5. classic-mode fallback (returns undefined — caller uses classic defaults)
+ *   5. classic-mode fallback (returns undefined)
  */
 export function selectReference(
   currentSession: Session,
-  currentPitstopIndex: number,
+  currentStintId: string,
+  currentPitstopId: string,
   priorSessions: Session[],
   targetMode: TargetMode,
 ): ResolvedReference | undefined {
 
-  // ── 1 & 2: Same-session references ──
-  const priorPitstops = currentSession.pitstops
-    .filter(
-      (p) =>
-        p.index < currentPitstopIndex &&
-        hasMinimalData(currentSession, p)
-    )
-    .sort((a, b) => b.index - a.index); // newest first
+  // Flatten same-session pitstops into ordered list of { stint, pitstop }
+  const sameSessionCandidates: { stint: Stint, pitstop: PitstopEntry }[] = [];
+  let foundCurrent = false;
+
+  // We want to collect all pitstops that occurred BEFORE the current one in time.
+  // Assuming stints and pitstops are in chronological order:
+  for (const stint of currentSession.stints) {
+    for (const pitstop of stint.pitstops) {
+      if (stint.id === currentStintId && pitstop.id === currentPitstopId) {
+        foundCurrent = true;
+        break; 
+      }
+      if (hasMinimalData(stint, pitstop)) {
+        sameSessionCandidates.push({ stint, pitstop });
+      }
+    }
+    if (foundCurrent) break;
+  }
+  
+  // Reverse to make it newest-first before the current point
+  sameSessionCandidates.reverse();
 
   // 1: nearest similar (same target mode)
-  const similar = priorPitstops.find((p) => p.targetMode === targetMode);
+  const similar = sameSessionCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
   if (similar) {
-    const cold = getColdForStint(currentSession, similar.index) ?? {};
+    const cold = getColdForStint(similar.stint) ?? {};
     return {
-      pitstop: similar,
+      stint: similar.stint,
+      pitstop: similar.pitstop,
       coldPressures: cold,
       source: "same-session-similar",
       sameSession: true,
@@ -221,11 +223,12 @@ export function selectReference(
   }
 
   // 2: nearest any
-  if (priorPitstops.length > 0) {
-    const best = priorPitstops[0];
-    const cold = getColdForStint(currentSession, best.index) ?? {};
+  if (sameSessionCandidates.length > 0) {
+    const best = sameSessionCandidates[0];
+    const cold = getColdForStint(best.stint) ?? {};
     return {
-      pitstop: best,
+      stint: best.stint,
+      pitstop: best.pitstop,
       coldPressures: cold,
       source: "same-session-nearest",
       sameSession: true,
@@ -238,24 +241,28 @@ export function selectReference(
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   for (const session of sorted) {
-    // Only consider sessions at the same track
-    if (
-      session.trackName.toLowerCase() !== currentSession.trackName.toLowerCase()
-    ) {
+    if (session.trackName.toLowerCase() !== currentSession.trackName.toLowerCase()) {
       continue;
     }
 
-    // Get latest pitstop with data from this session
-    const candidates = session.pitstops
-      .filter((p) => hasMinimalData(session, p))
-      .sort((a, b) => b.index - a.index);
+    // Get latest pitstops with data from this session
+    const priorCandidates: { stint: Stint, pitstop: PitstopEntry }[] = [];
+    for (const stint of session.stints) {
+      for (const pitstop of stint.pitstops) {
+        if (hasMinimalData(stint, pitstop)) {
+          priorCandidates.push({ stint, pitstop });
+        }
+      }
+    }
+    priorCandidates.reverse();
 
     // 3: same track + same target mode
-    const sameMode = candidates.find((p) => p.targetMode === targetMode);
+    const sameMode = priorCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
     if (sameMode) {
-      const cold = getColdForStint(session, sameMode.index) ?? {};
+      const cold = getColdForStint(sameMode.stint) ?? {};
       return {
-        pitstop: sameMode,
+        stint: sameMode.stint,
+        pitstop: sameMode.pitstop,
         coldPressures: cold,
         source: "prior-session-same-track-same-mode",
         sameSession: false,
@@ -263,11 +270,12 @@ export function selectReference(
     }
 
     // 4: same track, any mode
-    if (candidates.length > 0) {
-      const best = candidates[0];
-      const cold = getColdForStint(session, best.index) ?? {};
+    if (priorCandidates.length > 0) {
+      const best = priorCandidates[0];
+      const cold = getColdForStint(best.stint) ?? {};
       return {
-        pitstop: best,
+        stint: best.stint,
+        pitstop: best.pitstop,
         coldPressures: cold,
         source: "prior-session-same-track",
         sameSession: false,
@@ -275,33 +283,23 @@ export function selectReference(
     }
   }
 
-  // 5: no usable reference
   return undefined;
 }
 
 /**
  * A pitstop has minimal data if:
  * - It has hot measured pressures
- * - Cold pressures can be resolved for its stint (from baseline or prior recommendation)
+ * - Cold pressures can be resolved for its stint
  */
-function hasMinimalData(session: Session, p: PitstopEntry): boolean {
-  const hasHot =
-    p.hotMeasuredPressures &&
-    Object.keys(p.hotMeasuredPressures).length > 0;
-  const cold = getColdForStint(session, p.index);
+function hasMinimalData(stint: Stint, p: PitstopEntry): boolean {
+  const hasHot = p.hotMeasuredPressures && Object.keys(p.hotMeasuredPressures).length > 0;
+  const cold = getColdForStint(stint);
   const hasCold = cold && Object.keys(cold).length > 0;
   return !!(hasCold && hasHot);
 }
 
 // ─── Condition Correction (spec §5.4) ──────────────────────────────
 
-/**
- * Compute the effective temperature delta between next conditions and reference conditions.
- *
- *   effectiveTempDelta = (ambientNext - ambientRef) * kAmbient
- *                      + (asphaltNext - asphaltRef) * kTrack
- *                      + (startTireNext - startTireRef) * 1.0
- */
 export function computeEffectiveTempDelta(
   refAmbient: number,
   refAsphalt: number,
@@ -318,9 +316,6 @@ export function computeEffectiveTempDelta(
   );
 }
 
-/**
- * conditionCorrection = effectiveTempDelta * kTemp
- */
 export function computeConditionCorrection(
   effectiveTempDelta: number,
   kTemp: number
@@ -328,14 +323,8 @@ export function computeConditionCorrection(
   return effectiveTempDelta * kTemp;
 }
 
-// ─── Feedback Correction (spec §5.3) ──────────────────────────────
+// ─── Feedback Correction (spec §5.3) ───────────────────────────────
 
-/**
- * feedbackCorrection = referenceTargetHot - referenceMeasuredHot
- *
- * If positive → car came in cold → need to raise cold pressure.
- * If negative → car came in hot  → need to lower cold pressure.
- */
 export function computeFeedbackCorrection(
   targetHot: number,
   measuredHot: number
@@ -343,19 +332,8 @@ export function computeFeedbackCorrection(
   return targetHot - measuredHot;
 }
 
-// ─── Carry-over (spec §7 & prompt §E) ─────────────────────────────
+// ─── Carry-over (spec §7 & prompt §E) ──────────────────────────────
 
-/**
- * Compute confidence score for a carry-over candidate.
- *
- * Factors:
- *   - same session vs prior session     (+0.4 / +0.1)
- *   - same track                        (+0.2)
- *   - same target mode                  (+0.15)
- *   - ambient within ±5 °C              (+0.1)
- *   - has corrected pressures           (+0.1)
- *   - complete data (all 4 corners cold)  (+0.05)
- */
 export function computeCarryOverConfidence(
   ref: ResolvedReference,
   currentTargetMode: TargetMode,
@@ -366,17 +344,9 @@ export function computeCarryOverConfidence(
   let score = 0;
   score += ref.sameSession ? 0.4 : 0.1;
   if (refTrackName.toLowerCase() === currentTrackName.toLowerCase()) score += 0.2;
-  if (ref.pitstop.targetMode === currentTargetMode) score += 0.15;
+  if (ref.stint.baseline.targetMode === currentTargetMode) score += 0.15;
 
-  // Use baseline ambient from the reference or undefined
-  const refAmbient = getBaselineConditions(
-    // Build a minimal session just for the lookup — or pass refSession separately
-    // For carry-over, we already have ref.coldPressures but not ambient.
-    // We check if hotCorrectedPressures exist instead.
-    { baseline: {} } as Session // ambient check below uses ref.pitstop fields
-  ).ambient;
-  // If ref pitstop has no ambient (removed from model), skip ambient similarity check.
-  // This is acceptable — carry-over confidence is slightly lower without.
+  const refAmbient = ref.stint.baseline.ambientMeasured;
   void refAmbient;
 
   if (
@@ -386,17 +356,12 @@ export function computeCarryOverConfidence(
     score += 0.1;
   }
 
-  const coldKeys = ref.coldPressures
-    ? Object.keys(ref.coldPressures).length
-    : 0;
+  const coldKeys = ref.coldPressures ? Object.keys(ref.coldPressures).length : 0;
   if (coldKeys >= 4) score += 0.05;
 
   return Math.min(1, score);
 }
 
-/**
- * Compute confidence for a carry-over candidate with full session context.
- */
 export function computeCarryOverConfidenceWithSession(
   ref: ResolvedReference,
   refSession: Session,
@@ -407,9 +372,9 @@ export function computeCarryOverConfidenceWithSession(
   let score = 0;
   score += ref.sameSession ? 0.4 : 0.1;
   if (refSession.trackName.toLowerCase() === currentTrackName.toLowerCase()) score += 0.2;
-  if (ref.pitstop.targetMode === currentTargetMode) score += 0.15;
+  if (ref.stint.baseline.targetMode === currentTargetMode) score += 0.15;
 
-  const refBaseline = getBaselineConditions(refSession);
+  const refBaseline = getBaselineConditions(ref.stint);
   if (
     currentAmbient != null &&
     refBaseline.ambient != null &&
@@ -425,23 +390,12 @@ export function computeCarryOverConfidenceWithSession(
     score += 0.1;
   }
 
-  const coldKeys = ref.coldPressures
-    ? Object.keys(ref.coldPressures).length
-    : 0;
+  const coldKeys = ref.coldPressures ? Object.keys(ref.coldPressures).length : 0;
   if (coldKeys >= 4) score += 0.05;
 
   return Math.min(1, score);
 }
 
-/**
- * Compute a lightweight carry-over bias from prior sessions.
- *
- * For each qualifying prior pitstop, compute the residual
- * (actual hot - target hot) and weight it by confidence.
- * Then average. This is a *gentle* biasing nudge, not a dominant correction.
- *
- * Returns zero bias if no qualifying data or low confidence.
- */
 export function computeCarryOverBias(
   priorSessions: Session[],
   currentSession: Session,
@@ -459,37 +413,40 @@ export function computeCarryOverBias(
   for (const session of priorSessions) {
     if (session.id === currentSession.id) continue;
 
-    for (const pitstop of session.pitstops) {
-      if (!hasMinimalData(session, pitstop)) continue;
+    for (const stint of session.stints) {
+      for (const pitstop of stint.pitstops) {
+        if (!hasMinimalData(stint, pitstop)) continue;
 
-      const cold = getColdForStint(session, pitstop.index) ?? {};
-      const ref: ResolvedReference = {
-        pitstop,
-        coldPressures: cold,
-        source: "prior-session-same-track",
-        sameSession: false,
-      };
+        const cold = getColdForStint(stint) ?? {};
+        const ref: ResolvedReference = {
+          stint,
+          pitstop,
+          coldPressures: cold,
+          source: "prior-session-same-track",
+          sameSession: false,
+        };
 
-      const conf = computeCarryOverConfidenceWithSession(
-        ref,
-        session,
-        currentTargetMode,
-        currentAmbient,
-        currentSession.trackName,
-      );
+        const conf = computeCarryOverConfidenceWithSession(
+          ref,
+          session,
+          currentTargetMode,
+          currentAmbient,
+          currentSession.trackName,
+        );
 
-      if (conf < 0.3) continue; // skip low-confidence
+        if (conf < 0.3) continue;
 
-      const targets = getEffectiveTargetPerCorner(pitstop);
-      const hot = pitstop.hotMeasuredPressures ?? {};
-      const residuals: CornerValues = {
-        FL: (targets.FL - (hot.FL ?? targets.FL)),
-        FR: (targets.FR - (hot.FR ?? targets.FR)),
-        RL: (targets.RL - (hot.RL ?? targets.RL)),
-        RR: (targets.RR - (hot.RR ?? targets.RR)),
-      };
+        const targets = getEffectiveTargetPerCorner(stint, pitstop);
+        const hot = pitstop.hotMeasuredPressures ?? {};
+        const residuals: CornerValues = {
+          FL: (targets.FL - (hot.FL ?? targets.FL)),
+          FR: (targets.FR - (hot.FR ?? targets.FR)),
+          RL: (targets.RL - (hot.RL ?? targets.RL)),
+          RR: (targets.RR - (hot.RR ?? targets.RR)),
+        };
 
-      qualified.push({ residuals, weight: conf * 0.3 }); // capped gentle weight
+        qualified.push({ residuals, weight: conf * 0.3 });
+      }
     }
   }
 
@@ -511,35 +468,24 @@ export function computeCarryOverBias(
 }
 
 // ─── Main Recommendation Engine ────────────────────────────────────
-
 export interface RecommendationInput {
   currentSession: Session;
-  /** Index of the pitstop we are computing the next cold pressure FOR */
-  currentPitstopIndex: number;
-  /** Expected conditions for the upcoming stint */
+  currentStintId: string;
+  currentPitstopId: string;
   nextConditions: NextStintConditions;
-  /** Target mode for the upcoming stint */
   targetMode: TargetMode;
-  /** Targets for the upcoming stint */
   targets: Targets;
-  /** All prior sessions for carry-over and cross-session reference */
   priorSessions: Session[];
-  /** App settings (for coefficients, defaults, carry-over toggle) */
   settings: AppSettings;
 }
 
-/**
- * Compute the Level 1 next-cold-pressure recommendation.
- *
- * Returns a full RecommendationOutput including per-corner values,
- * predicted hot, deltas, and a human-readable rationale.
- */
 export function computeRecommendation(
   input: RecommendationInput
 ): RecommendationOutput {
   const {
     currentSession,
-    currentPitstopIndex,
+    currentStintId,
+    currentPitstopId,
     nextConditions,
     targetMode,
     targets,
@@ -554,37 +500,32 @@ export function computeRecommendation(
   };
 
   const defaultStartTire = settings.defaultStartTireTemp;
-
-  // ── Expand targets to four corners ──
   const targetCorners = expandTargets(targetMode, targets);
 
-  // ── Select reference ──
   const ref = selectReference(
     currentSession,
-    currentPitstopIndex,
+    currentStintId,
+    currentPitstopId,
     priorSessions,
     targetMode
   );
 
-  // If no reference, return classic-mode initial guess
   if (!ref) {
     return classicFallback(targetCorners, coefficients);
   }
 
   const refPitstop = ref.pitstop;
+  const refStint = ref.stint;
   const refCold = ref.coldPressures;
 
-  // ── Extract reference data ──
   const refHotMeasured = refPitstop.hotMeasuredPressures ?? {};
-  const refTargetHot = getEffectiveTargetPerCorner(refPitstop);
+  const refTargetHot = getEffectiveTargetPerCorner(refStint, refPitstop);
 
-  // Reference conditions from session baseline
-  const refBaselineConditions = getBaselineConditions(currentSession);
+  const refBaselineConditions = getBaselineConditions(refStint);
   const refAmbient = refBaselineConditions.ambient ?? nextConditions.ambientTemp;
   const refAsphalt = refBaselineConditions.asphalt ?? nextConditions.asphaltTemp;
   const refStartTire = refBaselineConditions.startTireTemps ?? {};
 
-  // ── Carry-over ──
   let carryOver: CarryOverBias = {
     biasPerCorner: { FL: 0, FR: 0, RL: 0, RR: 0 },
     confidence: 0,
@@ -599,14 +540,13 @@ export function computeRecommendation(
     );
   }
 
-  // ── Compute per corner ──
   const recommended: CornerValues = { FL: 0, FR: 0, RL: 0, RR: 0 };
   const predicted: CornerValues = { FL: 0, FR: 0, RL: 0, RR: 0 };
   const deltas: CornerValues = { FL: 0, FR: 0, RL: 0, RR: 0 };
   const rationaleLines: string[] = [];
 
   rationaleLines.push(
-    `Using pitstop ${refPitstop.index} as reference (${ref.source.replace(/-/g, " ")}).`
+    `Using pitstop ${refPitstop.index} from stint '${refStint.name}' as reference (${ref.source.replace(/-/g, " ")}).`
   );
 
   for (const corner of CORNERS) {
@@ -614,18 +554,14 @@ export function computeRecommendation(
     const rHot = refHotMeasured[corner];
     const rTarget = refTargetHot[corner];
 
-    // Skip corner if reference has no data
     if (rCold == null || rHot == null) {
-      recommended[corner] = targetCorners[corner]; // naive fallback
+      recommended[corner] = targetCorners[corner];
       predicted[corner] = targetCorners[corner];
       deltas[corner] = 0;
       continue;
     }
 
-    // feedbackCorrection
     const feedback = computeFeedbackCorrection(rTarget, rHot);
-
-    // conditionCorrection
     const refStartTireVal = refStartTire[corner] ?? defaultStartTire;
     const nextStartTireVal =
       nextConditions.startTireTemps?.[corner] ?? defaultStartTire;
@@ -641,31 +577,21 @@ export function computeRecommendation(
     );
     const condCorr = computeConditionCorrection(tempDelta, coefficients.kTemp);
 
-    // carry-over
     const coCorr = carryOver.biasPerCorner[corner] ?? 0;
-
-    // Final formula
     const nextCold = rCold + feedback - condCorr + coCorr;
     recommended[corner] = round(nextCold, 3);
-
-    // Predicted hot = target (since we corrected for everything we know)
     predicted[corner] = round(targetCorners[corner], 3);
     deltas[corner] = round(predicted[corner] - targetCorners[corner], 3);
   }
 
-  // ── Build rationale ──
   const refHotFL = refHotMeasured.FL;
   const refTargetFL = refTargetHot.FL;
   if (refHotFL != null && refTargetFL != null) {
     const diff = round(refHotFL - refTargetFL, 3);
     if (diff > 0) {
-      rationaleLines.push(
-        `Car came in ${Math.abs(diff)} bar high.`
-      );
+      rationaleLines.push(`Car came in ${Math.abs(diff)} bar high.`);
     } else if (diff < 0) {
-      rationaleLines.push(
-        `Car came in ${Math.abs(diff)} bar low.`
-      );
+      rationaleLines.push(`Car came in ${Math.abs(diff)} bar low.`);
     } else {
       rationaleLines.push(`Car came in on target.`);
     }
@@ -690,13 +616,12 @@ export function computeRecommendation(
 
   rationaleLines.push(`Recommended cold pressure adjusted accordingly.`);
 
-  // ── Confidence score ──
   const confidence = computeCarryOverConfidence(
     ref,
     targetMode,
     nextConditions.ambientTemp,
     currentSession.trackName,
-    currentSession.trackName // ref is from same session track context
+    currentSession.trackName
   );
 
   return {
@@ -716,10 +641,6 @@ export function computeRecommendation(
 
 // ─── Classic Fallback ──────────────────────────────────────────────
 
-/**
- * When no reference is available, return the target as the cold start guess.
- * This represents a "no correction" baseline.
- */
 function classicFallback(
   targetCorners: CornerValues,
   coefficients: EngineCoefficients

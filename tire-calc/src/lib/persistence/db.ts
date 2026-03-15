@@ -126,3 +126,7 @@ export async function getSessionCount(): Promise<number> {
   const db = await getDB();
   return db.count(SESSIONS_STORE);
 }
+
+export async function clearHistory(): Promise<void> {
+  localStorage.removeItem("sessions");
+}

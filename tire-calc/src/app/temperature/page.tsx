@@ -23,9 +23,11 @@ export default function TemperatureAnalysisPage() {
 
   // ── Add new temperature run ──
   const handleAddRun = () => {
-    if (!session) return;
+    if (!session || !session.stints?.length) return;
+    const latestStint = session.stints[session.stints.length - 1];
+    const latestPitstop = latestStint.pitstops?.[latestStint.pitstops.length - 1];
     const newRun = createTemperatureRun({
-      linkedPitstopId: session.pitstops[session.pitstops.length - 1]?.id,
+      linkedPitstopId: latestPitstop?.id,
     });
     updateSession({
       temperatureRuns: [...session.temperatureRuns, newRun],
