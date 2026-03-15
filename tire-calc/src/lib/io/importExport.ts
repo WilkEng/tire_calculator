@@ -5,7 +5,7 @@
 // Strict schema validation with graceful migration hooks.
 // ────────────────────────────────────────────────────────────────────
 
-import type { Session, AppSettings } from "../domain/models";
+import type { Session, AppSettings, StintBaseline } from "../domain/models";
 import { SCHEMA_VERSION, APP_VERSION } from "../domain/models";
 
 // ─── Export Types ──────────────────────────────────────────────────
@@ -304,6 +304,71 @@ export function downloadCSV(csv: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+// ─── Stint Baseline Import ─────────────────────────────────────────
+
+export interface StintBaselineImportResult extends ImportResult {
+  baseline?: StintBaseline;
+  name?: string;
+}
+
+/**
+ * Import a stint baseline from a JSON string.
+ * Validates the "stint-baseline" export format.
+ */
+export function importStintBaseline(json: string): StintBaselineImportResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return { success: false, errors: ["Invalid JSON."], warnings: [] };
+  }
+
+  if (!isObject(data)) {
+    return { success: false, errors: ["Expected a JSON object."], warnings: [] };
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (obj.type !== "stint-baseline") {
+    return {
+      success: false,
+      errors: [`Expected type "stint-baseline", got "${String(obj.type)}".`],
+      warnings: [],
+    };
+  }
+
+  if (!isObject(obj.baseline)) {
+    return {
+      success: false,
+      errors: ["Missing baseline object."],
+      warnings: [],
+    };
+  }
+
+  const baseline = obj.baseline as Record<string, unknown>;
+
+  // Validate required baseline fields
+  if (typeof baseline.targetMode !== "string") {
+    warnings.push("Missing targetMode, defaulting to 'single'.");
+    baseline.targetMode = "single";
+  }
+  if (!isObject(baseline.targets)) {
+    warnings.push("Missing targets, defaulting to empty.");
+    baseline.targets = {};
+  }
+
+  return {
+    success: true,
+    errors: [],
+    warnings,
+    baseline: baseline as unknown as StintBaseline,
+    name: typeof obj.name === "string" ? obj.name : undefined,
+  };
+}
+
 // ─── Read a file from user input ───────────────────────────────────
 
 /** Read a File object as text (for use with <input type="file">) */
@@ -332,6 +397,9 @@ function validateSession(s: unknown): string[] {
   if (typeof obj.id !== "string" || !obj.id) errors.push("Missing session id.");
   if (typeof obj.name !== "string") errors.push("Missing session name.");
   if (typeof obj.trackName !== "string") errors.push("Missing trackName.");
-  if (!Array.isArray(obj.pitstops)) errors.push("Missing pitstops array.");
+  // v2+ uses stints[].pitstops, v1 used top-level pitstops
+  if (!Array.isArray(obj.stints) && !Array.isArray(obj.pitstops)) {
+    errors.push("Missing stints or pitstops array.");
+  }
   return errors;
 }

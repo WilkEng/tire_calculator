@@ -1,24 +1,34 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useCallback, useState } from "react";
 import { useSessionContext } from "@/context/SessionContext";
 import { Button } from "@/components/ui/Button";
-import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
 import { PitstopCard } from "@/components/planner/PitstopCard";
-import { RecommendationPanel } from "@/components/planner/RecommendationPanel"; 
+import { RecommendationPanel } from "@/components/planner/RecommendationPanel";
 import { SessionHeader } from "@/components/planner/SessionHeader";
-import { SessionStartCard } from "@/components/planner/SessionStartCard";       
-import { computeRecommendation, type RecommendationInput } from "@/lib/engine"; 
-import type { RecommendationOutput, Stint } from "@/lib/domain/models";
-import { fetchForecast, estimateAsphaltTemp } from "@/lib/weather/openMeteo";
-import { downloadJSON } from "@/lib/io/importExport";
+import { SessionStartCard } from "@/components/planner/SessionStartCard";
+import { NewSessionModal } from "@/components/planner/NewSessionModal";
+import type { NewSessionData } from "@/components/planner/NewSessionModal";
+import { StintStartFlow } from "@/components/planner/StintStartFlow";
+import { BaselinePickerModal } from "@/components/planner/BaselinePickerModal";
+import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
+import type {
+  RecommendationOutput,
+  Stint,
+  StintBaseline,
+  Corner,
+} from "@/lib/domain/models";
+import { downloadJSON, importStintBaseline } from "@/lib/io/importExport";
+
+const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
 export default function PlannerPage() {
   const {
     session,
     settings,
     createNewSession,
+    closeSession,
     addStint,
     addPitstop,
     updatePitstop,
@@ -28,166 +38,393 @@ export default function PlannerPage() {
     removePitstop,
     updateSession,
     updateStintBaseline,
+    importBaselineToStint,
+    addUserWeatherOverride,
   } = useSessionContext();
 
-  const [fetchingStintId, setFetchingStintId] = useState<string | null>(null);
+  // --- Modal state ---
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [baselinePickerStintId, setBaselinePickerStintId] = useState<
+    string | null
+  >(null);
+  const [collapsedStints, setCollapsedStints] = useState<Set<string>>(
+    new Set()
+  );
 
-  const handleFetchWeather = useCallback((stintId: string) => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
-    setFetchingStintId(stintId);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const data = await fetchForecast(latitude, longitude);
-          if (data && data.length > 0) {
-            const current = data[0];
-            const estAsphalt = estimateAsphaltTemp(
-              current.ambient,
-              current.shortwaveRadiation,
-              current.windSpeed,
-              current.cloudCover
-            );
-            updateStintBaseline(stintId, {
-              ambientMeasured: current.ambient,
-              asphaltMeasured: Number(estAsphalt.toFixed(1)),
-            });
-          } else {
-            alert("No weather data found.");
-          }
-        } catch (e) {
-          alert("Failed to fetch weather: " + String(e));
-        } finally {
-          setFetchingStintId(null);
-        }
-      },
-      (error) => {
-        alert("Geolocation error: " + error.message);
-        setFetchingStintId(null);
-      }
-    );
-  }, [updateStintBaseline]);
+  // --- Create new session from modal ---
+  const handleCreateSession = useCallback(
+    (data: NewSessionData) => {
+      createNewSession({
+        name: data.name,
+        trackName: data.trackName,
+        date: data.date,
+        location: data.location,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        compoundPreset: data.compoundPreset,
+        notes: data.notes,
+      });
+      setShowNewSessionModal(false);
+    },
+    [createNewSession]
+  );
 
-  const handleNewSession = useCallback(() => {
-    createNewSession("New Session", "");
-  }, [createNewSession]);
-
+  // --- Export baseline as JSON ---
   const handleExportBaseline = useCallback((stint: Stint) => {
     const exportData = {
       version: 1,
       type: "stint-baseline",
       name: stint.name,
-      baseline: stint.baseline
+      baseline: stint.baseline,
     };
     const json = JSON.stringify(exportData, null, 2);
     downloadJSON(json, `baseline-${stint.name || "export"}.json`);
   }, []);
 
+  // --- Import baseline from file ---
+  const handleImportBaseline = useCallback(
+    (stintId: string, file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = e.target?.result as string;
+          const result = importStintBaseline(json);
+          if (!result.success) {
+            alert("Invalid baseline file: " + result.errors.join(", "));
+            return;
+          }
+          importBaselineToStint(
+            stintId,
+            result.baseline!,
+            result.name,
+            result.name
+          );
+        } catch (err) {
+          alert("Failed to import baseline: " + String(err));
+        }
+      };
+      reader.readAsText(file);
+    },
+    [importBaselineToStint]
+  );
+
+  // --- Pick baseline from history ---
+  const handlePickBaseline = useCallback(
+    (baseline: StintBaseline, sessionName: string, stintName: string) => {
+      if (!baselinePickerStintId) return;
+      importBaselineToStint(
+        baselinePickerStintId,
+        baseline,
+        sessionName,
+        stintName
+      );
+      setBaselinePickerStintId(null);
+    },
+    [baselinePickerStintId, importBaselineToStint]
+  );
+
+  // --- Weather override handler ---
+  const handleWeatherOverride = useCallback(
+    (field: "ambient" | "asphalt", value: number) => {
+      if (field === "ambient") {
+        addUserWeatherOverride({
+          timestamp: new Date().toISOString(),
+          ambientOverride: value,
+        });
+      } else {
+        addUserWeatherOverride({
+          timestamp: new Date().toISOString(),
+          asphaltOverride: value,
+        });
+      }
+    },
+    [addUserWeatherOverride]
+  );
+
+  // --- Compute recommendation per stint ---
+  const computeStintRecommendation = useCallback(
+    (stintId: string): RecommendationOutput | null => {
+      if (!session) return null;
+      const stint = session.stints?.find((s) => s.id === stintId);
+      if (!stint || !stint.pitstops || stint.pitstops.length === 0) return null;
+      const latestPitstop = stint.pitstops[stint.pitstops.length - 1];
+
+      const input: RecommendationInput = {
+        currentSession: session,
+        currentStintId: stint.id,
+        currentPitstopId: latestPitstop.id,
+        nextConditions: {
+          ambientTemp: stint.baseline?.ambientMeasured ?? 20,
+          asphaltTemp: stint.baseline?.asphaltMeasured ?? 30,
+          startTireTemps: stint.baseline?.startTireTemps,
+        },
+        targetMode: stint.baseline?.targetMode ?? "single",
+        targets: stint.baseline?.targets ?? {},
+        priorSessions: [],
+        settings,
+      };
+
+      try {
+        return computeRecommendation(input);
+      } catch {
+        return null;
+      }
+    },
+    [session, settings]
+  );
+
+  // --- Add stint with recommended cold pressures ---
+  const handleAddStint = useCallback(() => {
+    if (!session || !session.stints || session.stints.length === 0) {
+      addStint("Stint 1");
+      return;
+    }
+
+    const stintNumber = session.stints.length + 1;
+    const lastStint = session.stints[session.stints.length - 1];
+    const recommendation = computeStintRecommendation(lastStint.id);
+
+    if (recommendation) {
+      addStint(`Stint ${stintNumber}`, {
+        coldPressures: recommendation.recommendedColdPressures,
+        ambientMeasured: lastStint.baseline?.ambientMeasured,
+        asphaltMeasured: lastStint.baseline?.asphaltMeasured,
+      });
+    } else {
+      addStint(`Stint ${stintNumber}`);
+    }
+  }, [session, addStint, computeStintRecommendation]);
+
+  // --- Toggle stint collapse ---
+  const toggleStintCollapse = useCallback((stintId: string) => {
+    setCollapsedStints((prev) => {
+      const next = new Set(prev);
+      if (next.has(stintId)) {
+        next.delete(stintId);
+      } else {
+        next.add(stintId);
+      }
+      return next;
+    });
+  }, []);
+
+  // ===== RENDER =========================================================
+
   if (!session) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-6">   
-        <h1 className="text-2xl font-bold text-gray-200">Pressure Planner</h1>  
+      <div className="flex flex-col items-center justify-center py-20 gap-6">
+        <h1 className="text-2xl font-bold text-gray-200">Pressure Planner</h1>
         <p className="text-gray-400 text-center max-w-md">
           Start a new session to begin logging pitstop data and calculating tire
           pressures.
         </p>
-        <Button size="lg" onClick={handleNewSession}>
+        <Button size="lg" onClick={() => setShowNewSessionModal(true)}>
           + New Session
         </Button>
+
+        <NewSessionModal
+          open={showNewSessionModal}
+          onClose={() => setShowNewSessionModal(false)}
+          onSubmit={handleCreateSession}
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* ── Header bar ── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-100">Pressure Planner</h1>   
+        <h1 className="text-xl font-bold text-gray-100">Pressure Planner</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleNewSession}>     
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowNewSessionModal(true)}
+          >
             New Session
+          </Button>
+          <Button variant="secondary" size="sm" onClick={closeSession}>
+            Close Session
           </Button>
         </div>
       </div>
 
+      {/* ── Session metadata ── */}
       <SessionHeader session={session} onUpdate={updateSession} />
 
+      {/* ── Stints ── */}
       <div className="space-y-8">
-        {session.stints?.map((stint) => (
-          <div key={stint.id} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-200">{stint.name || `Stint`}</h2>
-              <Button variant="secondary" size="sm" onClick={() => handleExportBaseline(stint)}>
-                Export Baseline
-              </Button>
-            </div>
-            
-            <div className="flex flex-wrap items-end gap-4 bg-gray-800/50 p-4 rounded border border-gray-700">
-              <NumericInput
-                label="Ambient Temp"
-                unit={settings.unitsTemperature}
-                value={stint.baseline.ambientMeasured}
-                onChange={(val) => updateStintBaseline(stint.id, { ambientMeasured: val })}
-              />
-              <NumericInput
-                label="Asphalt Temp"
-                unit={settings.unitsTemperature}
-                value={stint.baseline.asphaltMeasured}
-                onChange={(val) => updateStintBaseline(stint.id, { asphaltMeasured: val })}
-              />
-              <Button
-                variant="secondary"
-                onClick={() => handleFetchWeather(stint.id)}
-                disabled={fetchingStintId === stint.id}
-              >
-                {fetchingStintId === stint.id ? "Fetching..." : "Fetch Weather"}
-              </Button>
-            </div>
+        {session.stints?.map((stint, stintIdx) => {
+          const isCollapsed = collapsedStints.has(stint.id);
+          const isLastStint = stintIdx === (session.stints?.length ?? 0) - 1;
+          const recommendation = computeStintRecommendation(stint.id);
 
-            <div className="space-y-4 pl-4 border-l-2 border-slate-700">
-              {stint.pitstops?.map((pitstop) => {
-                const isLatest = stint.id === session.stints[session.stints.length - 1].id &&
-                                 pitstop.id === stint.pitstops[stint.pitstops.length - 1].id;
-                                 
-                return (
-                  <PitstopCard
-                    key={pitstop.id}
-                    pitstop={pitstop}
-                    onUpdate={(updates) => updatePitstop(stint.id, pitstop.id, updates)}       
-                    onHotPressureChange={(corner, val) =>
-                      updateHotPressure(stint.id, pitstop.id, corner, val)
-                    }
-                    onBledPressureChange={(corner, val) =>
-                      updateBledPressure(stint.id, pitstop.id, corner, val)
-                    }
-                    onResetBledCorner={(corner) =>
-                      resetBledCorner(stint.id, pitstop.id, corner)
-                    }
-                    onRemove={() => removePitstop(stint.id, pitstop.id)}
-                    isLatest={isLatest}
+          // Get recommended cold from previous stint (for StintStartFlow)
+          let priorRec: RecommendationOutput | null = null;
+          if (stintIdx > 0) {
+            const prevStint = session.stints![stintIdx - 1];
+            priorRec = computeStintRecommendation(prevStint.id);
+          }
+
+          return (
+            <div
+              key={stint.id}
+              className="rounded-lg border border-gray-700 bg-gray-900/50 overflow-hidden"
+            >
+              {/* ── Stint header ── */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
+                onClick={() => toggleStintCollapse(stint.id)}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-gray-500 transition-transform ${
+                      isCollapsed ? "" : "rotate-90"
+                    }`}
+                  >
+                    {"\u25B6"}
+                  </span>
+                  <h2 className="text-lg font-semibold text-gray-200">
+                    {stint.name || `Stint ${stintIdx + 1}`}
+                  </h2>
+                  <span className="text-xs text-gray-500">
+                    {stint.pitstops?.length ?? 0} pitstop
+                    {(stint.pitstops?.length ?? 0) !== 1 ? "s" : ""}
+                  </span>
+                  {stint.importedBaseline && (
+                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
+                      Imported
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleExportBaseline(stint)}
+                  >
+                    Export
+                  </Button>
+                </div>
+              </button>
+
+              {/* ── Stint body (collapsible) ── */}
+              {!isCollapsed && (
+                <div className="p-4 pt-0 space-y-4">
+                  {/* ── Baseline / StintStartFlow ── */}
+                  <StintStartFlow
+                    stint={stint}
                     pressureUnit={settings.unitsPressure}
                     temperatureUnit={settings.unitsTemperature}
+                    isImported={!!stint.importedBaseline}
+                    recommendedColdPressures={
+                      priorRec?.recommendedColdPressures
+                    }
+                    onBaselineUpdate={(updates) =>
+                      updateStintBaseline(stint.id, updates)
+                    }
+                    onImportBaseline={(file) =>
+                      handleImportBaseline(stint.id, file)
+                    }
+                    onPickFromHistory={() =>
+                      setBaselinePickerStintId(stint.id)
+                    }
+                    onWeatherOverride={handleWeatherOverride}
                   />
-                );
-              })}
+
+                  {/* ── Pitstops ── */}
+                  <div className="space-y-4 pl-4 border-l-2 border-slate-700">
+                    {stint.pitstops?.map((pitstop) => {
+                      const isLatest =
+                        isLastStint &&
+                        pitstop.id ===
+                          stint.pitstops[stint.pitstops.length - 1]
+                            .id;
+
+                      return (
+                        <PitstopCard
+                          key={pitstop.id}
+                          pitstop={pitstop}
+                          onUpdate={(updates) =>
+                            updatePitstop(stint.id, pitstop.id, updates)
+                          }
+                          onHotPressureChange={(corner, val) =>
+                            updateHotPressure(
+                              stint.id,
+                              pitstop.id,
+                              corner,
+                              val
+                            )
+                          }
+                          onBledPressureChange={(corner, val) =>
+                            updateBledPressure(
+                              stint.id,
+                              pitstop.id,
+                              corner,
+                              val
+                            )
+                          }
+                          onResetBledCorner={(corner) =>
+                            resetBledCorner(stint.id, pitstop.id, corner)
+                          }
+                          onRemove={() =>
+                            removePitstop(stint.id, pitstop.id)
+                          }
+                          isLatest={isLatest}
+                          pressureUnit={settings.unitsPressure}
+                          temperatureUnit={settings.unitsTemperature}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Add pitstop ── */}
+                  <div className="flex ml-4 mt-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => addPitstop(stint.id)}
+                    >
+                      + Add Pitstop to {stint.name || `Stint ${stintIdx + 1}`}
+                    </Button>
+                  </div>
+
+                  {/* ── Recommendation for this stint ── */}
+                  {stint.pitstops?.length > 0 && (
+                    <RecommendationPanel
+                      recommendation={recommendation}
+                      pressureUnit={settings.unitsPressure}
+                    />
+                  )}
+                </div>
+              )}
             </div>
-            
-            <div className="flex ml-4 mt-2">
-              <Button variant="secondary" size="sm" onClick={() => addPitstop(stint.id)}>
-                + Add Pitstop to {stint.name || `Stint`}
-              </Button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
+      {/* ── Add Stint + bottom actions ── */}
       <div className="flex justify-center gap-4 pt-4 border-t border-slate-700">
-        <Button variant="primary" onClick={() => addStint("New Stint")}>
+        <Button variant="primary" onClick={handleAddStint}>
           + Add Stint
         </Button>
       </div>
+
+      {/* ── Modals ── */}
+      <NewSessionModal
+        open={showNewSessionModal}
+        onClose={() => setShowNewSessionModal(false)}
+        onSubmit={handleCreateSession}
+      />
+
+      <BaselinePickerModal
+        open={baselinePickerStintId !== null}
+        onClose={() => setBaselinePickerStintId(null)}
+        onSelect={handlePickBaseline}
+        pressureUnit={settings.unitsPressure}
+      />
     </div>
   );
 }

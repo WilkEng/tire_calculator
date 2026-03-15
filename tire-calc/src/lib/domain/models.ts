@@ -2,8 +2,8 @@
 // All domain types live here. Every persisted entity includes
 // schemaVersion, appVersion, timestamps, and a stable id.
 
-export const SCHEMA_VERSION = 2;
-export const APP_VERSION = "0.2.0";
+export const SCHEMA_VERSION = 3;
+export const APP_VERSION = "0.3.0";
 
 // ─── Enums / Literal Unions ────────────────────────────────────────
 
@@ -166,6 +166,13 @@ export interface Stint {
   /** The starting conditions and targets for this stint */
   baseline: StintBaseline;
 
+  /** If the baseline was imported from a file or another session */
+  importedBaseline?: {
+    sourceSessionName?: string;
+    sourceStintName?: string;
+    importedAt: string; // ISO 8601
+  };
+
   /** The pitstops that occurred during this stint */
   pitstops: PitstopEntry[];
 }
@@ -205,6 +212,18 @@ export interface WeatherSnapshot {
   humidity?: number;        // percent 0–100
 }
 
+// ─── User Weather Override ──────────────────────────────────────────
+//
+// Records a user-entered ambient or asphalt measurement at a specific time.
+// Used to build offset-corrected forecast lines on the dashboard chart.
+
+export interface UserWeatherOverride {
+  id: string;
+  timestamp: string; // ISO 8601 — when the measurement was taken/entered
+  ambientOverride?: number;  // user-measured ambient temp
+  asphaltOverride?: number;  // user-measured asphalt temp
+}
+
 // ─── Session ───────────────────────────────────────────────────────
 
 export interface Session {
@@ -225,6 +244,9 @@ export interface Session {
 
   /** Each session consists of multiple stints (e.g., FP1, Quali). */
   stints: Stint[];
+
+  /** User-entered ambient/asphalt overrides throughout the day */
+  userWeatherOverrides: UserWeatherOverride[];
 
   weatherSnapshots: WeatherSnapshot[];
   temperatureRuns: TemperatureRun[];

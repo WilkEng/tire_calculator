@@ -266,6 +266,169 @@ export async function searchLocation(
   );
 }
 
+// ─── Today's Forecast & Chart Lines ────────────────────────────────
+
+export interface ChartDataPoint {
+  /** ISO time string */
+  time: string;
+  /** Hour label e.g. "14:00" */
+  hour: string;
+  /** epoch ms for sorting */
+  epoch: number;
+  apiAmbient?: number;
+  apiAsphalt?: number;
+  userAmbient?: number;
+  userAsphalt?: number;
+}
+
+export interface HourlyCardData {
+  time: string;
+  hour: string;
+  temp: number;
+  cloudCover: number;
+  humidity: number;
+  windSpeed: number;
+  icon: "sunny" | "partly-cloudy" | "cloudy" | "rain";
+  rainLikely: boolean;
+}
+
+/**
+ * Fetch today's full-day forecast filtered to today's date.
+ * Returns 24h of data (or as many hours as available).
+ */
+export async function fetchTodayForecast(
+  latitude: number,
+  longitude: number
+): Promise<WeatherForecastPoint[]> {
+  const all = await fetchForecast(latitude, longitude);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return all.filter((p) => p.time.startsWith(todayStr));
+}
+
+/**
+ * Build the asphalt temperature estimate line from forecast points.
+ */
+export function buildAsphaltForecastLine(
+  points: WeatherForecastPoint[]
+): { time: string; asphalt: number }[] {
+  return points.map((p) => ({
+    time: p.time,
+    asphalt: estimateAsphaltTemp(
+      p.ambient,
+      p.shortwaveRadiation,
+      p.windSpeed,
+      p.cloudCover
+    ),
+  }));
+}
+
+/**
+ * Build full chart data from forecast points + optional user overrides.
+ *
+ * Offset model: for each user override, compute the diff between user value
+ * and the API value at the nearest forecast time. The most recent override's
+ * offset is applied to all forecast points to produce the user-corrected line.
+ */
+export function buildChartData(
+  forecastPoints: WeatherForecastPoint[],
+  userOverrides?: { timestamp: string; ambientOverride?: number; asphaltOverride?: number }[]
+): ChartDataPoint[] {
+  if (forecastPoints.length === 0) return [];
+
+  // Calculate user offsets from the most recent override
+  let ambientOffset: number | null = null;
+  let asphaltOffset: number | null = null;
+
+  if (userOverrides && userOverrides.length > 0) {
+    // Sort overrides by time, most recent last
+    const sorted = [...userOverrides].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    // Find most recent ambient override
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i].ambientOverride != null) {
+        const nearest = findNearestForecast(forecastPoints, new Date(sorted[i].timestamp));
+        if (nearest) {
+          ambientOffset = sorted[i].ambientOverride! - nearest.ambient;
+        }
+        break;
+      }
+    }
+
+    // Find most recent asphalt override
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i].asphaltOverride != null) {
+        const nearest = findNearestForecast(forecastPoints, new Date(sorted[i].timestamp));
+        if (nearest) {
+          const apiAsphalt = estimateAsphaltTemp(
+            nearest.ambient,
+            nearest.shortwaveRadiation,
+            nearest.windSpeed,
+            nearest.cloudCover
+          );
+          asphaltOffset = sorted[i].asphaltOverride! - apiAsphalt;
+        }
+        break;
+      }
+    }
+  }
+
+  return forecastPoints.map((p) => {
+    const dt = new Date(p.time);
+    const apiAsphalt = estimateAsphaltTemp(
+      p.ambient,
+      p.shortwaveRadiation,
+      p.windSpeed,
+      p.cloudCover
+    );
+
+    const point: ChartDataPoint = {
+      time: p.time,
+      hour: `${dt.getHours().toString().padStart(2, "0")}:00`,
+      epoch: dt.getTime(),
+      apiAmbient: p.ambient,
+      apiAsphalt: Math.round(apiAsphalt * 10) / 10,
+    };
+
+    if (ambientOffset !== null) {
+      point.userAmbient = Math.round((p.ambient + ambientOffset) * 10) / 10;
+    }
+    if (asphaltOffset !== null) {
+      point.userAsphalt = Math.round((apiAsphalt + asphaltOffset) * 10) / 10;
+    }
+
+    return point;
+  });
+}
+
+/**
+ * Build hourly card data for the iOS-style weather card.
+ */
+export function buildHourlyCards(
+  forecastPoints: WeatherForecastPoint[]
+): HourlyCardData[] {
+  return forecastPoints.map((p) => {
+    const dt = new Date(p.time);
+    const rainLikely = p.humidity > 85 && p.cloudCover > 60;
+    let icon: HourlyCardData["icon"] = "sunny";
+    if (rainLikely) icon = "rain";
+    else if (p.cloudCover > 80) icon = "cloudy";
+    else if (p.cloudCover > 40) icon = "partly-cloudy";
+
+    return {
+      time: p.time,
+      hour: `${dt.getHours().toString().padStart(2, "0")}:00`,
+      temp: Math.round(p.ambient),
+      cloudCover: p.cloudCover,
+      humidity: p.humidity,
+      windSpeed: p.windSpeed,
+      icon,
+      rainLikely,
+    };
+  });
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function mapHourly(hourly: OpenMeteoHourly): WeatherForecastPoint[] {

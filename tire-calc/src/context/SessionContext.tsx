@@ -15,6 +15,7 @@ import type {
   PitstopEntry,
   StintBaseline,
   Corner,
+  UserWeatherOverride,
 } from "@/lib/domain/models";
 import { DEFAULT_APP_SETTINGS } from "@/lib/domain/models";
 import {
@@ -22,6 +23,7 @@ import {
   createStint,
   createStintBaseline,
   createPitstopEntry,
+  createUserWeatherOverride,
 } from "@/lib/domain/factories";
 import { saveSession, loadSettings, saveSettings } from "@/lib/persistence/db";
 import { nowISO } from "@/lib/utils/helpers";
@@ -34,15 +36,33 @@ interface SessionContextValue {
 
   /** Set the entire session (e.g. after loading from DB) */
   setSession: (session: Session) => void;
-  /** Create a new blank session */
-  createNewSession: (name: string, trackName: string) => Session;
+  /** Create a new session with full metadata */
+  createNewSession: (params: {
+    name: string;
+    trackName: string;
+    date?: string;
+    location?: string;
+    latitude?: number;
+    longitude?: number;
+    compoundPreset?: string;
+    notes?: string;
+  }) => Session;
+  /** Close the active session */
+  closeSession: () => void;
 
   /** Create a new stint */
-  addStint: (name: string) => void;
+  addStint: (name: string, baselineOverrides?: Partial<StintBaseline>) => void;
   /** Update stint baseline */
   updateStintBaseline: (stintId: string, updates: Partial<StintBaseline>) => void;
   /** Update stint core fields (e.g. name) */
   updateStint: (stintId: string, updates: Partial<Stint>) => void;
+  /** Import a baseline into a stint (marks it as imported, disables editing) */
+  importBaselineToStint: (
+    stintId: string,
+    baseline: StintBaseline,
+    sourceSessionName?: string,
+    sourceStintName?: string
+  ) => void;
 
   /** Add a new pitstop to a stint */
   addPitstop: (stintId: string) => void;
@@ -76,6 +96,9 @@ interface SessionContextValue {
 
   /** Update session-level fields */
   updateSession: (updates: Partial<Session>) => void;
+
+  /** Add a user weather override (records user-measured ambient/asphalt with timestamp) */
+  addUserWeatherOverride: (override: Omit<UserWeatherOverride, "id">) => void;
 
   /** Update settings */
   updateSettings: (updates: Partial<AppSettings>) => void;
@@ -115,15 +138,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createNewSession = useCallback(
-    (name: string, trackName: string): Session => {
+    (params: {
+      name: string;
+      trackName: string;
+      date?: string;
+      location?: string;
+      latitude?: number;
+      longitude?: number;
+      compoundPreset?: string;
+      notes?: string;
+    }): Session => {
       const s = createSession({
-        name,
-        trackName,
+        name: params.name,
+        trackName: params.trackName,
+        date: params.date ?? new Date().toISOString().slice(0, 10),
+        location: params.location ?? "",
+        latitude: params.latitude,
+        longitude: params.longitude,
+        compoundPreset: params.compoundPreset ?? "",
+        notes: params.notes ?? "",
       });
       // Add first Stint automatically
-      const firstStint = createStint("FP1", settings.defaultTargetMode, {});
-      const firstPitstop = createPitstopEntry(1);
-      firstStint.pitstops = [firstPitstop];
+      const firstStint = createStint("Stint 1", settings.defaultTargetMode, {});
       s.stints = [firstStint];
       
       setSessionState(s);
@@ -132,7 +168,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [settings.defaultTargetMode]
   );
 
-  const addStint = useCallback((name: string) => {
+  const closeSession = useCallback(() => {
+    setSessionState(null);
+  }, []);
+
+  const addStint = useCallback((name: string, baselineOverrides?: Partial<StintBaseline>) => {
     setSessionState((prev) => {
       if (!prev) return prev;
       const lastStint = prev.stints[prev.stints.length - 1];
@@ -141,6 +181,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         lastStint?.baseline.targetMode ?? settings.defaultTargetMode,
         lastStint?.baseline.targets ?? {}
       );
+      // Apply baseline overrides (e.g. recommended cold pressures, weather conditions)
+      if (baselineOverrides) {
+        newStint.baseline = { ...newStint.baseline, ...baselineOverrides };
+      }
       return {
         ...prev,
         stints: [...prev.stints, newStint],
@@ -315,6 +359,51 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  /** Import a baseline into a stint — marks it as imported (read-only). */
+  const importBaselineToStint = useCallback(
+    (
+      stintId: string,
+      baseline: StintBaseline,
+      sourceSessionName?: string,
+      sourceStintName?: string
+    ) => {
+      setSessionState((prev) => {
+        if (!prev) return prev;
+        const stints = prev.stints.map((s) =>
+          s.id === stintId
+            ? {
+                ...s,
+                baseline: { ...baseline },
+                importedBaseline: {
+                  sourceSessionName,
+                  sourceStintName,
+                  importedAt: nowISO(),
+                },
+              }
+            : s
+        );
+        return { ...prev, stints, updatedAt: nowISO() };
+      });
+    },
+    []
+  );
+
+  /** Record a user weather override on the session. */
+  const addUserWeatherOverride = useCallback(
+    (override: Omit<UserWeatherOverride, "id">) => {
+      setSessionState((prev) => {
+        if (!prev) return prev;
+        const entry = createUserWeatherOverride(override);
+        return {
+          ...prev,
+          userWeatherOverrides: [...(prev.userWeatherOverrides ?? []), entry],
+          updatedAt: nowISO(),
+        };
+      });
+    },
+    []
+  );
+
   const updateSession = useCallback((updates: Partial<Session>) => {
     setSessionState((prev) => {
       if (!prev) return prev;
@@ -342,9 +431,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         settings,
         setSession,
         createNewSession,
+        closeSession,
         addStint,
         updateStintBaseline,
         updateStint,
+        importBaselineToStint,
         addPitstop,
         updatePitstop,
         updateHotPressure,
@@ -352,6 +443,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         resetBledCorner,
         removePitstop,
         updateSession,
+        addUserWeatherOverride,
         updateSettings,
         save,
       }}

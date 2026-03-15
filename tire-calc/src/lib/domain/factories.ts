@@ -6,6 +6,7 @@ import {
   type PitstopEntry,
   type TemperatureRun,
   type WeatherSnapshot,
+  type UserWeatherOverride,
   type TargetMode,
   type Targets,
   type WeatherSource,
@@ -30,6 +31,7 @@ export function createSession(
     createdAt: now,
     updatedAt: now,
     stints: [],
+    userWeatherOverrides: [],
     weatherSnapshots: [],
     temperatureRuns: [],
     recommendationHistory: [],
@@ -99,6 +101,16 @@ export function createWeatherSnapshot(
     id: generateId(),
     timestamp: nowISO(),
     source,
+    ...overrides,
+  };
+}
+
+// --- Factory: UserWeatherOverride -----------------------------------
+export function createUserWeatherOverride(
+  overrides: Omit<UserWeatherOverride, "id"> & Partial<Pick<UserWeatherOverride, "id">>
+): UserWeatherOverride {
+  return {
+    id: generateId(),
     ...overrides,
   };
 }

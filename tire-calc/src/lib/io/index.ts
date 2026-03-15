@@ -5,6 +5,7 @@ export {
   downloadJSON,
   importSession,
   importFullBackup,
+  importStintBaseline,
   exportSessionCSV,
   downloadCSV,
   readFileAsText,
@@ -16,4 +17,5 @@ export type {
   ImportResult,
   SessionImportResult,
   FullBackupImportResult,
+  StintBaselineImportResult,
 } from "./importExport";
