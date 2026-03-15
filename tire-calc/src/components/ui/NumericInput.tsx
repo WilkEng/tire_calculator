@@ -1,8 +1,8 @@
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
 
 interface NumericInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
-  label: string;
+  label: ReactNode;
   unit?: string;
   value: number | undefined;
   onChange: (value: number | undefined) => void;

@@ -20,10 +20,10 @@ export default function DashboardPage() {
       currentPitstopIndex: latest.index,
       nextConditions: {
         ambientTemp:
-          latest.ambientForecastAtStint ?? latest.ambientMeasured ?? 20,
+          session.baseline?.ambientForecast ?? session.baseline?.ambientMeasured ?? 20,
         asphaltTemp:
-          latest.asphaltForecastAtStint ?? latest.asphaltMeasured ?? 30,
-        startTireTemps: latest.startTireTemps,
+          session.baseline?.asphaltForecast ?? session.baseline?.asphaltMeasured ?? 30,
+        startTireTemps: session.baseline?.startTireTemps,
       },
       targetMode: latest.targetMode,
       targets: latest.targets,
@@ -94,15 +94,15 @@ export default function DashboardPage() {
               <div>
                 <div className="text-xs text-gray-400 mb-1">Ambient</div>
                 <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                  {latestPitstop?.ambientMeasured?.toFixed(1) ?? "—"}
+                  {session.baseline?.ambientMeasured?.toFixed(1) ?? "—"}
                   <span className="text-sm text-gray-500 ml-1">
                     °{settings.unitsTemperature}
                   </span>
                 </div>
-                {latestPitstop?.ambientForecastAtStint != null && (
+                {session.baseline?.ambientForecast != null && (
                   <div className="text-xs text-gray-500">
                     Forecast:{" "}
-                    {latestPitstop.ambientForecastAtStint.toFixed(1)}°
+                    {session.baseline.ambientForecast.toFixed(1)}°
                     {settings.unitsTemperature}
                   </div>
                 )}
@@ -110,15 +110,15 @@ export default function DashboardPage() {
               <div>
                 <div className="text-xs text-gray-400 mb-1">Asphalt</div>
                 <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                  {latestPitstop?.asphaltMeasured?.toFixed(1) ?? "—"}
+                  {session.baseline?.asphaltMeasured?.toFixed(1) ?? "—"}
                   <span className="text-sm text-gray-500 ml-1">
                     °{settings.unitsTemperature}
                   </span>
                 </div>
-                {latestPitstop?.asphaltForecastAtStint != null && (
+                {session.baseline?.asphaltForecast != null && (
                   <div className="text-xs text-gray-500">
                     Forecast:{" "}
-                    {latestPitstop.asphaltForecastAtStint.toFixed(1)}°
+                    {session.baseline.asphaltForecast.toFixed(1)}°
                     {settings.unitsTemperature}
                   </div>
                 )}
