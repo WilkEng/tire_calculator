@@ -318,6 +318,9 @@ export interface AppSettings {
   /** Minimum cold pressure threshold for warnings (bar) */
   minColdPressureBar: number;
 
+  /** Temperature spread threshold for camber assessment (°C) */
+  camberSpreadThreshold: number;
+
   schemaVersion: number;
   appVersion: string;
 }
@@ -339,6 +342,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   kAmbient: 1.0,
   compoundCoefficients: { ...COMPOUND_PRESETS },
   minColdPressureBar: 1.3,
+  camberSpreadThreshold: 12,
   schemaVersion: SCHEMA_VERSION,
   appVersion: APP_VERSION,
 };

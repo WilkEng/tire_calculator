@@ -259,6 +259,21 @@ export default function SettingsPage() {
               Used when no compound-specific threshold is set. Cold pressures below this are highlighted in red.
             </p>
           </div>
+
+          {/* Camber spread threshold */}
+          <div className="pt-3 border-t border-gray-700/40">
+            <NumericInput
+              label="Camber Spread Threshold (°C)"
+              value={settings.camberSpreadThreshold ?? 12}
+              onChange={(v) =>
+                updateSettings({ camberSpreadThreshold: v ?? 12 })
+              }
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Temperature spread (inner − outer) beyond this threshold indicates too much or too little camber.
+              Values within ⅓ of this threshold are &quot;perfect&quot;, within ⅔ are &quot;slight&quot;, beyond are warnings.
+            </p>
+          </div>
         </div>
       </Card>
 

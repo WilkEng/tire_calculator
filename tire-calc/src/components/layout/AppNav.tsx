@@ -19,7 +19,7 @@ export function AppNav() {
     <nav className="flex items-center gap-1 bg-gray-900/95 backdrop-blur-sm px-4 py-2 border-b border-gray-700/50 sticky top-0 z-50">
       <Link href="/" className="flex items-center gap-2 mr-6">
         <Image
-          src="/logo-white.svg"
+          src="/tire_calculator/logo-white.svg"
           alt="Wilkinson Engineering"
           width={28}
           height={28}

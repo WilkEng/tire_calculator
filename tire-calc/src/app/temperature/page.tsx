@@ -15,15 +15,15 @@ import type {
 import { createTemperatureRun } from "@/lib/domain/factories";
 import { round } from "@/lib/utils/helpers";
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
+  ReferenceLine,
 } from "recharts";
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
@@ -35,7 +35,27 @@ const CORNER_LABELS: Record<Corner, string> = {
 };
 const ZONES = ["inner", "middle", "outer"] as const;
 
-// ─── Warning thresholds (based on Excel reference) ─────────────────
+/**
+ * Zone ordering per corner — from CENTER of car outward.
+ * Left-side tires (FL, RL): the "inside" faces car center, so graph reads Outside → Middle → Inside
+ *   (left edge of chart = outside of tire = leftmost on vehicle, right edge = inside = towards center)
+ * Right-side tires (FR, RR): the "inside" faces car center, so graph reads Inside → Middle → Outside
+ *   (left edge = inside = towards center, right edge = outside of tire = rightmost on vehicle)
+ */
+const ZONE_ORDER: Record<Corner, readonly (keyof CornerTemperatureReading)[]> = {
+  FL: ["outer", "middle", "inner"],
+  FR: ["inner", "middle", "outer"],
+  RL: ["outer", "middle", "inner"],
+  RR: ["inner", "middle", "outer"],
+};
+
+const ZONE_LABELS: Record<string, string> = {
+  inner: "Inside",
+  middle: "Middle",
+  outer: "Outside",
+};
+
+// ─── Warning types ─────────────────────────────────────────────────
 
 type WarningLevel = "too_much" | "slightly_too_much" | "perfect" | "slightly_too_little" | "too_little";
 type PressureWarning = "too_high" | "slightly_too_high" | "perfect" | "slightly_too_low" | "too_low";
@@ -54,9 +74,9 @@ const WARNING_COLORS: Record<WarningLevel | PressureWarning, string> = {
 
 const WARNING_LABELS: Record<WarningLevel | PressureWarning, string> = {
   too_much: "Too much camber",
-  slightly_too_much: "Slightly too much camber",
+  slightly_too_much: "Slightly too much",
   perfect: "Perfect",
-  slightly_too_little: "Slightly too little camber",
+  slightly_too_little: "Slightly too little",
   too_little: "Too little camber",
   too_high: "Pressure too high",
   slightly_too_high: "Pressure slightly high",
@@ -64,15 +84,21 @@ const WARNING_LABELS: Record<WarningLevel | PressureWarning, string> = {
   too_low: "Pressure too low",
 };
 
-function assessCamber(camberDelta: number): WarningLevel {
+/**
+ * Assess camber based on configurable spread threshold.
+ * The spread is divided into thirds:
+ *   ≤ threshold/3 → perfect
+ *   ≤ 2*threshold/3 → slight
+ *   > 2*threshold/3 → warning
+ */
+function assessCamber(camberDelta: number, spreadThreshold: number): WarningLevel {
   const abs = Math.abs(camberDelta);
-  if (abs <= 3) return "perfect";
+  const third = spreadThreshold / 3;
+  if (abs <= third) return "perfect";
   if (camberDelta > 0) {
-    // Inner hotter than outer → too much camber
-    return abs <= 8 ? "slightly_too_much" : "too_much";
+    return abs <= 2 * third ? "slightly_too_much" : "too_much";
   }
-  // Outer hotter → too little camber
-  return abs <= 8 ? "slightly_too_little" : "too_little";
+  return abs <= 2 * third ? "slightly_too_little" : "too_little";
 }
 
 function assessPressure(avgTemp: number, targetAvg: number): PressureWarning {
@@ -89,7 +115,15 @@ interface DataSource {
   label: string;
   type: "run" | "pitstop";
   readings: Partial<FourCornerTemperatureReadings>;
+  notes?: string;
 }
+
+// ─── Line colors for data sources ──────────────────────────────────
+
+const LINE_PALETTE = [
+  "#00d4aa", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
+];
 
 // ─── Chart tooltip ─────────────────────────────────────────────────
 
@@ -107,13 +141,20 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-gray-900/95 border border-gray-700 rounded px-3 py-2 shadow-lg text-xs">
+    <div className="bg-gray-900/95 border border-gray-700 rounded px-3 py-2 shadow-lg text-xs max-w-xs">
       <p className="text-gray-400 font-medium mb-1">{label}</p>
-      {payload.map((entry: { name: string; value: number; color: string }, i: number) => (
-        <p key={i} className="flex items-center gap-2" style={{ color: entry.color }}>
-          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
-          {entry.name}: {entry.value?.toFixed(1)}°{unit}
-        </p>
+      {payload.map((entry: { name: string; value: number; color: string; payload?: { notes?: Record<string, string> } }, i: number) => (
+        <div key={i}>
+          <p className="flex items-center gap-2" style={{ color: entry.color }}>
+            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
+            {entry.name}: {entry.value?.toFixed(1)}°{unit}
+          </p>
+          {entry.payload?.notes?.[entry.name] && (
+            <p className="text-gray-500 ml-4 italic text-[10px]">
+              {entry.payload.notes[entry.name]}
+            </p>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -133,67 +174,80 @@ function WarningBadge({ level, label }: { level: WarningLevel | PressureWarning;
   );
 }
 
-// ─── Corner Chart Component ────────────────────────────────────────
-
-const ZONE_COLORS = {
-  inner: "#00d4aa",
-  middle: "#3b82f6",
-  outer: "#f59e0b",
-};
+// ─── Corner Chart Component (Line Chart) ───────────────────────────
 
 function CornerChart({
   corner,
   sources,
   averagedReading,
   unit,
+  spreadThreshold,
 }: {
   corner: Corner;
   sources: DataSource[];
   averagedReading: CornerTemperatureReading | null;
   unit: string;
+  spreadThreshold: number;
 }) {
-  // Build chart data: each source becomes one group with inner/middle/outer bars
-  const chartData = useMemo(() => {
-    const items: { name: string; inner: number; middle: number; outer: number }[] = [];
+  const zoneOrder = ZONE_ORDER[corner];
 
-    for (const src of sources) {
-      const r = src.readings[corner];
-      if (!r) continue;
-      items.push({
-        name: src.label.length > 15 ? src.label.slice(0, 14) + "…" : src.label,
-        inner: r.inner,
-        middle: r.middle,
-        outer: r.outer,
-      });
-    }
-
+  // Build chart data: x-axis = zone positions, each source is a separate line
+  // Each data point: { zone: "Outside", "Run 1": 95, "Run 2": 88, "Average": 91, notes: { "Run 1": "some note" } }
+  const { chartData, lineKeys } = useMemo(() => {
+    const allSources = [...sources];
     if (averagedReading) {
-      items.push({
-        name: "Average",
-        inner: averagedReading.inner,
-        middle: averagedReading.middle,
-        outer: averagedReading.outer,
+      allSources.push({
+        id: "__avg__",
+        label: "Average",
+        type: "run",
+        readings: { [corner]: averagedReading },
       });
     }
 
-    return items;
-  }, [sources, averagedReading, corner]);
+    const keys: { key: string; color: string; isDashed: boolean; notes?: string }[] = [];
+    for (let i = 0; i < allSources.length; i++) {
+      const src = allSources[i];
+      keys.push({
+        key: src.label,
+        color: src.id === "__avg__" ? "#ffffff" : LINE_PALETTE[i % LINE_PALETTE.length],
+        isDashed: src.id === "__avg__",
+        notes: src.notes,
+      });
+    }
 
-  // Compute derived metrics for this corner
+    const data = zoneOrder.map((zone) => {
+      const point: Record<string, unknown> = { zone: ZONE_LABELS[zone] };
+      const notesMap: Record<string, string> = {};
+      for (const src of allSources) {
+        const r = src.readings[corner];
+        if (r) {
+          point[src.label] = r[zone];
+        }
+        if (src.notes) {
+          notesMap[src.label] = src.notes;
+        }
+      }
+      point.notes = notesMap;
+      return point;
+    });
+
+    return { chartData: data, lineKeys: keys };
+  }, [sources, averagedReading, corner, zoneOrder]);
+
+  // Compute derived metrics
   const metrics = useMemo(() => {
     const reading = averagedReading ?? (sources.length === 1 ? sources[0]?.readings[corner] : null);
     if (!reading) return null;
 
     const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
     const camberDelta = round(reading.inner - reading.outer, 1);
-    const camberWarning = assessCamber(camberDelta);
-    // Use 85°C as nominal reference; this is just for relative assessment  
+    const camberWarning = assessCamber(camberDelta, spreadThreshold);
     const pressureWarning = assessPressure(avg, 85);
 
     return { avg, camberDelta, camberWarning, pressureWarning };
-  }, [averagedReading, sources, corner]);
+  }, [averagedReading, sources, corner, spreadThreshold]);
 
-  if (chartData.length === 0) {
+  if (lineKeys.length === 0) {
     return (
       <Card title={`${CORNER_LABELS[corner]} (${corner})`}>
         <div className="text-sm text-gray-500 text-center py-8">
@@ -207,53 +261,64 @@ function CornerChart({
     <Card title={`${CORNER_LABELS[corner]} (${corner})`}>
       <div className="space-y-3">
         {/* Chart */}
-        <div className="h-48">
+        <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barCategoryGap="20%">
+            <LineChart data={chartData} margin={{ top: 5, right: 15, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-              <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} unit="°" />
+              <XAxis
+                dataKey="zone"
+                tick={{ fill: "#9ca3af", fontSize: 11 }}
+                axisLine={{ stroke: "#4b5563" }}
+              />
+              <YAxis
+                tick={{ fill: "#9ca3af", fontSize: 10 }}
+                unit="°"
+                axisLine={{ stroke: "#4b5563" }}
+              />
               <Tooltip content={<ChartTooltip unit={unit} />} />
               <Legend
                 wrapperStyle={{ fontSize: 10, color: "#9ca3af" }}
                 iconSize={8}
               />
-              <Bar dataKey="inner" fill={ZONE_COLORS.inner} name="Inner" radius={[2, 2, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.name === "Average" ? `${ZONE_COLORS.inner}99` : ZONE_COLORS.inner}
-                    stroke={entry.name === "Average" ? ZONE_COLORS.inner : "none"}
-                    strokeWidth={entry.name === "Average" ? 2 : 0}
-                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
-                  />
-                ))}
-              </Bar>
-              <Bar dataKey="middle" fill={ZONE_COLORS.middle} name="Middle" radius={[2, 2, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.name === "Average" ? `${ZONE_COLORS.middle}99` : ZONE_COLORS.middle}
-                    stroke={entry.name === "Average" ? ZONE_COLORS.middle : "none"}
-                    strokeWidth={entry.name === "Average" ? 2 : 0}
-                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
-                  />
-                ))}
-              </Bar>
-              <Bar dataKey="outer" fill={ZONE_COLORS.outer} name="Outer" radius={[2, 2, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.name === "Average" ? `${ZONE_COLORS.outer}99` : ZONE_COLORS.outer}
-                    stroke={entry.name === "Average" ? ZONE_COLORS.outer : "none"}
-                    strokeWidth={entry.name === "Average" ? 2 : 0}
-                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
+              {metrics && (
+                <ReferenceLine
+                  y={metrics.avg}
+                  stroke="#6b728055"
+                  strokeDasharray="3 3"
+                  label={{ value: `Avg ${metrics.avg}°`, position: "right", fill: "#6b7280", fontSize: 9 }}
+                />
+              )}
+              {lineKeys.map((lk) => (
+                <Line
+                  key={lk.key}
+                  type="monotone"
+                  dataKey={lk.key}
+                  stroke={lk.color}
+                  strokeWidth={lk.isDashed ? 2 : 1.5}
+                  strokeDasharray={lk.isDashed ? "6 3" : undefined}
+                  dot={{ fill: lk.color, r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Notes legend */}
+        {sources.some((s) => s.notes) && (
+          <div className="space-y-0.5 pt-1 border-t border-gray-700/30">
+            {sources.filter((s) => s.notes).map((s, i) => (
+              <p key={s.id} className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                <span
+                  className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: LINE_PALETTE[sources.indexOf(s) % LINE_PALETTE.length] }}
+                />
+                <span className="italic truncate">{s.notes}</span>
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Metrics & Warnings */}
         {metrics && (
@@ -292,6 +357,8 @@ export default function TemperatureAnalysisPage() {
   const [showAverage, setShowAverage] = useState(true);
   const [runsExpanded, setRunsExpanded] = useState(false);
 
+  const spreadThreshold = settings.camberSpreadThreshold ?? 12;
+
   // ── Build all available data sources ──
   const dataSources: DataSource[] = useMemo(() => {
     if (!session) return [];
@@ -305,6 +372,7 @@ export default function TemperatureAnalysisPage() {
         label: `Run ${i + 1}${run.setupTag ? ` (${run.setupTag})` : ""}`,
         type: "run",
         readings: run.readings,
+        notes: run.notes || undefined,
       });
     }
 
@@ -322,6 +390,7 @@ export default function TemperatureAnalysisPage() {
               label: `${stint.name} P${pit.index}`,
               type: "pitstop",
               readings: pit.temperatureReadings,
+              notes: pit.notes || undefined,
             });
           }
         }
@@ -557,6 +626,7 @@ export default function TemperatureAnalysisPage() {
                     >
                       {src.type === "pitstop" ? "🏁 " : "🌡 "}
                       {src.label}
+                      {src.notes && <span className="ml-1 text-gray-500">📝</span>}
                     </button>
                   );
                 })}
@@ -576,7 +646,7 @@ export default function TemperatureAnalysisPage() {
               </label>
             )}
 
-            {/* 4-corner charts in 2×2 grid */}
+            {/* 4-corner line charts in 2×2 grid */}
             {selectedSources.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {CORNERS.map((corner) => (
@@ -586,6 +656,7 @@ export default function TemperatureAnalysisPage() {
                     sources={selectedSources}
                     averagedReading={averagedReadings?.[corner] ?? null}
                     unit={settings.unitsTemperature}
+                    spreadThreshold={spreadThreshold}
                   />
                 ))}
               </div>
@@ -617,13 +688,13 @@ export default function TemperatureAnalysisPage() {
           {groupedAverages ? (
             <div>
               <p className="text-xs text-gray-500 mb-3">
-                Averaging {groupedAverages.runCount} run(s)
+                Averaging {groupedAverages.runCount} run(s) &middot; Spread threshold: {spreadThreshold}°C
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {CORNERS.map((c) => {
                   const avg = groupedAverages.averages[c];
                   const camberDelta = round(avg.inner - avg.outer, 1);
-                  const camberLevel = assessCamber(camberDelta);
+                  const camberLevel = assessCamber(camberDelta, spreadThreshold);
                   return (
                     <div key={c} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/30">
                       <div className="text-xs text-gray-400 font-semibold mb-2">
