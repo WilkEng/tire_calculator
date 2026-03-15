@@ -36,8 +36,29 @@ import {
   type CoefficientsUsed,
   type ReferenceSource,
   type Corner,
+  type CompoundType,
+  type CompoundCoefficients,
+  COMPOUND_PRESETS,
 } from "../domain/models";
 import { round } from "../utils/helpers";
+
+// ─── Compound coefficient resolver ─────────────────────────────────
+
+/**
+ * Resolve kAmbient and kTrack for a given compound type from settings.
+ * Falls back to user-customized presets, then defaults.
+ */
+export function resolveCompoundCoefficients(
+  compound: CompoundType | undefined,
+  settings: AppSettings
+): { kAmbient: number; kTrack: number } {
+  if (!compound || compound === "custom") {
+    return { kAmbient: settings.kAmbient, kTrack: settings.kTrack };
+  }
+  const userPresets = settings.compoundCoefficients ?? COMPOUND_PRESETS;
+  const preset = userPresets[compound] ?? COMPOUND_PRESETS[compound];
+  return { kAmbient: preset.kAmbient, kTrack: preset.kTrack };
+}
 
 // ─── Public types for engine I/O ───────────────────────────────────
 
@@ -502,6 +523,8 @@ export interface RecommendationInput {
   targets: Targets;
   priorSessions: Session[];
   settings: AppSettings;
+  /** Compound type for the next stint — determines kAmbient/kTrack */
+  compound?: CompoundType;
 }
 
 export function computeRecommendation(
@@ -516,12 +539,14 @@ export function computeRecommendation(
     targets,
     priorSessions,
     settings,
+    compound,
   } = input;
 
+  const resolved = resolveCompoundCoefficients(compound, settings);
   const coefficients: EngineCoefficients = {
     kTemp: settings.kTemp,
-    kTrack: settings.kTrack,
-    kAmbient: settings.kAmbient,
+    kTrack: resolved.kTrack,
+    kAmbient: resolved.kAmbient,
   };
 
   const defaultStartTire = settings.defaultStartTireTemp;

@@ -9,6 +9,8 @@ interface ColdPressureCardProps {
   pressureUnit: string;
   /** Description of conditions used, e.g. "Based on Stint 1 → API forecast" */
   conditionsLabel?: string;
+  /** Threshold below which cold pressure shows a red warning (bar) */
+  minColdPressureBar?: number;
 }
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
@@ -19,6 +21,7 @@ export function ColdPressureCard({
   recommendation,
   pressureUnit,
   conditionsLabel,
+  minColdPressureBar = 1.3,
 }: ColdPressureCardProps) {
   if (!recommendation) {
     return (
@@ -65,16 +68,24 @@ export function ColdPressureCard({
         {CORNERS.map((c) => {
           const cold = recommendation.recommendedColdPressures[c];
           const delta = recommendation.deltasToTarget[c];
+          const isBelowMin = cold < minColdPressureBar;
 
           return (
             <div key={c} className="text-center">
               <div className="text-xs text-gray-400 mb-1">{c}</div>
-              <div className="text-2xl font-bold text-blue-400 tabular-nums leading-tight">
+              <div className={`text-2xl font-bold tabular-nums leading-tight ${
+                isBelowMin ? "text-red-400" : "text-blue-400"
+              }`}>
                 {cold.toFixed(3)}
               </div>
               <div className="text-[10px] text-gray-500 mt-0.5">
                 {pressureUnit}
               </div>
+              {isBelowMin && (
+                <div className="text-[10px] text-red-400 font-medium mt-0.5">
+                  ⚠ Below {minColdPressureBar.toFixed(1)}
+                </div>
+              )}
               {/* Delta indicator */}
               <div
                 className={`text-xs mt-1 tabular-nums ${
@@ -92,6 +103,13 @@ export function ColdPressureCard({
           );
         })}
       </div>
+
+      {/* Low pressure warning banner */}
+      {CORNERS.some((c) => recommendation.recommendedColdPressures[c] < minColdPressureBar) && (
+        <div className="bg-red-900/30 border border-red-700/50 rounded p-2 mb-3 text-xs text-red-300 text-center font-medium">
+          ⚠ One or more cold pressures are below {minColdPressureBar.toFixed(1)} bar — verify settings
+        </div>
+      )}
 
       {/* Rationale */}
       <p className="text-xs text-gray-400 leading-relaxed mb-2">

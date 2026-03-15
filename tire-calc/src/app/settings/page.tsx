@@ -4,7 +4,8 @@ import { useSessionContext } from "@/context/SessionContext";
 import { Card } from "@/components/ui/Card";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
-import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/models";
+import type { PressureUnit, TemperatureUnit, TargetMode, CompoundType, CompoundCoefficients } from "@/lib/domain/models";
+import { COMPOUND_PRESETS } from "@/lib/domain/models";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSessionContext();
@@ -138,6 +139,102 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+      </Card>
+
+      {/* ── Compound Coefficients ── */}
+      <Card title="Compound Settings">
+        <div className="space-y-4">
+          <Select
+            label="Default Compound"
+            value={settings.defaultCompound ?? "medium"}
+            onChange={(v) =>
+              updateSettings({ defaultCompound: v as CompoundType })
+            }
+            options={[
+              { value: "soft", label: "Soft" },
+              { value: "medium", label: "Medium" },
+              { value: "hard", label: "Hard" },
+              { value: "wet", label: "Wet" },
+              { value: "custom", label: "Custom (use global k values)" },
+            ]}
+          />
+
+          <p className="text-xs text-gray-500">
+            Each compound has its own k_ambient and k_track weighting.
+            Edit below to adjust per-compound coefficients.
+          </p>
+
+          <div className="space-y-3">
+            {(["soft", "medium", "hard", "wet"] as const).map((cmp) => {
+              const userCoeffs = settings.compoundCoefficients?.[cmp];
+              const defaults = COMPOUND_PRESETS[cmp];
+              const kAmb = userCoeffs?.kAmbient ?? defaults.kAmbient;
+              const kTrk = userCoeffs?.kTrack ?? defaults.kTrack;
+              return (
+                <div
+                  key={cmp}
+                  className="grid grid-cols-[100px_1fr_1fr_auto] gap-3 items-end p-3 bg-gray-800 rounded"
+                >
+                  <span className="text-sm font-medium text-gray-200 capitalize">
+                    {cmp}
+                  </span>
+                  <NumericInput
+                    label="k_ambient"
+                    value={kAmb}
+                    onChange={(v) => {
+                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                      updateSettings({
+                        compoundCoefficients: {
+                          ...prev,
+                          [cmp]: { kAmbient: v ?? defaults.kAmbient, kTrack: kTrk },
+                        },
+                      });
+                    }}
+                  />
+                  <NumericInput
+                    label="k_track"
+                    value={kTrk}
+                    onChange={(v) => {
+                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                      updateSettings({
+                        compoundCoefficients: {
+                          ...prev,
+                          [cmp]: { kAmbient: kAmb, kTrack: v ?? defaults.kTrack },
+                        },
+                      });
+                    }}
+                  />
+                  <button
+                    className="text-xs text-gray-500 hover:text-gray-300 pb-1"
+                    onClick={() => {
+                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                      updateSettings({
+                        compoundCoefficients: {
+                          ...prev,
+                          [cmp]: { ...COMPOUND_PRESETS[cmp] },
+                        },
+                      });
+                    }}
+                    title="Reset to default"
+                  >
+                    ↺
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <NumericInput
+            label="Min Cold Pressure Warning (bar)"
+            value={settings.minColdPressureBar ?? 1.3}
+            onChange={(v) =>
+              updateSettings({ minColdPressureBar: v ?? 1.3 })
+            }
+          />
+          <p className="text-xs text-gray-500">
+            Cold pressures below this threshold will be highlighted in red.
+          </p>
+        </div>
       </Card>
 
       {/* ── App Info ── */}

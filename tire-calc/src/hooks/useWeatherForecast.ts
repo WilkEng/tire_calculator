@@ -29,6 +29,8 @@ interface UseWeatherForecastResult {
     windSpeed: number;
     humidity: number;
   } | null;
+  /** Get forecast conditions at a specific time (nearest point interpolation) */
+  getForecastAtTime: (time: Date) => { ambient: number; asphalt: number } | null;
   /** Whether forecast is currently loading */
   isLoading: boolean;
   /** Error message if fetch failed */
@@ -145,11 +147,39 @@ export function useWeatherForecast(
     };
   }
 
+  // Get forecast conditions at any time (nearest point)
+  const getForecastAtTime = useCallback(
+    (time: Date): { ambient: number; asphalt: number } | null => {
+      if (forecastPoints.length === 0) return null;
+      let best = forecastPoints[0];
+      let bestDiff = Math.abs(new Date(best.time).getTime() - time.getTime());
+      for (const p of forecastPoints) {
+        const diff = Math.abs(new Date(p.time).getTime() - time.getTime());
+        if (diff < bestDiff) {
+          best = p;
+          bestDiff = diff;
+        }
+      }
+      const asphalt = estimateAsphaltTemp(
+        best.ambient,
+        best.shortwaveRadiation,
+        best.windSpeed,
+        best.cloudCover
+      );
+      return {
+        ambient: Math.round(best.ambient * 10) / 10,
+        asphalt: Math.round(asphalt * 10) / 10,
+      };
+    },
+    [forecastPoints]
+  );
+
   return {
     forecastPoints,
     chartData,
     hourlyCards,
     currentConditions,
+    getForecastAtTime,
     isLoading,
     error,
     refetch: doFetch,

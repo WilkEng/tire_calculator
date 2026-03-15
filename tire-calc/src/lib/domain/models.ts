@@ -19,6 +19,22 @@ export type TargetMode = "single" | "front-rear" | "four-corner";
 /** Canonical corner identifiers */
 export type Corner = "FL" | "FR" | "RL" | "RR";
 
+/** Tire compound types */
+export type CompoundType = "soft" | "medium" | "hard" | "wet" | "custom";
+
+/** Per-compound coefficient presets */
+export interface CompoundCoefficients {
+  kAmbient: number;
+  kTrack: number;
+}
+
+export const COMPOUND_PRESETS: Record<Exclude<CompoundType, "custom">, CompoundCoefficients> = {
+  soft:   { kAmbient: 1.10, kTrack: 1.90 },
+  medium: { kAmbient: 1.00, kTrack: 1.75 },
+  hard:   { kAmbient: 0.90, kTrack: 1.55 },
+  wet:    { kAmbient: 0.95, kTrack: 0.70 },
+};
+
 /** Where a weather data point came from */
 export type WeatherSource = "open-meteo-forecast" | "open-meteo-history" | "manual";
 
@@ -110,6 +126,9 @@ export interface StintBaseline {
   targetMode: TargetMode;
   /** Target hot pressure values */
   targets: Targets;
+
+  /** Tire compound for this stint (affects k_ambient / k_track) */
+  compound?: CompoundType;
 
   /** Optional measured/forecast ambient temperature at stint start */
   ambientMeasured?: number;
@@ -266,6 +285,8 @@ export interface AppSettings {
   defaultStartTireTemp: number;
   /** Default target mode for new sessions */
   defaultTargetMode: TargetMode;
+  /** Default compound for new stints */
+  defaultCompound: CompoundType;
 
   /** Whether session-to-session carry-over is active */
   carryOverEnabled: boolean;
@@ -277,13 +298,20 @@ export interface AppSettings {
   /** Advanced settings visible */
   advancedModeEnabled: boolean;
 
-  // ── Classic-mode coefficients (editable in advanced settings) ──
+  // ── Pressure sensitivity coefficient ──
   /** Pressure sensitivity: bar/°C */
   kTemp: number;
-  /** Asphalt weighting multiplier */
+
+  // ── Per-compound coefficients (editable in advanced settings) ──
+  /** Custom compound k_ambient/k_track fallback used when compound = "custom" */
   kTrack: number;
-  /** Ambient weighting multiplier */
   kAmbient: number;
+
+  /** User-adjustable per-compound coefficient overrides */
+  compoundCoefficients: Record<Exclude<CompoundType, "custom">, CompoundCoefficients>;
+
+  /** Minimum cold pressure threshold for warnings (bar) */
+  minColdPressureBar: number;
 
   schemaVersion: number;
   appVersion: string;
@@ -296,13 +324,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   unitsTemperature: "C",
   defaultStartTireTemp: 25,
   defaultTargetMode: "single",
+  defaultCompound: "medium",
   carryOverEnabled: true,
   weatherProvider: "open-meteo",
   classicModeEnabled: true,
   advancedModeEnabled: false,
-  kTemp: 0.012,
+  kTemp: 0.0105,
   kTrack: 1.75,
   kAmbient: 1.0,
+  compoundCoefficients: { ...COMPOUND_PRESETS },
+  minColdPressureBar: 1.3,
   schemaVersion: SCHEMA_VERSION,
   appVersion: APP_VERSION,
 };

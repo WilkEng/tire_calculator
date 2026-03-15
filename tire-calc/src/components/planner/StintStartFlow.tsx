@@ -9,6 +9,7 @@ import type {
   TargetMode,
   Corner,
   Stint,
+  CompoundType,
 } from "@/lib/domain/models";
 
 // ─── Types ─────────────────────────────────────────────────────────
@@ -28,6 +29,8 @@ interface StintStartFlowProps {
   recommendedColdPressures?: { FL?: number; FR?: number; RL?: number; RR?: number };
   /** Current weather conditions (from API/hook) */
   weatherConditions?: { ambient: number; asphalt: number };
+  /** Get weather prediction at a given time */
+  getForecastAtTime?: (time: Date) => { ambient: number; asphalt: number } | null;
   /** Callback when baseline fields change */
   onBaselineUpdate: (updates: Partial<StintBaseline>) => void;
   /** Callback to handle file import */
@@ -58,6 +61,7 @@ export function StintStartFlow({
   isImported,
   recommendedColdPressures,
   weatherConditions,
+  getForecastAtTime,
   onBaselineUpdate,
   onImportBaseline,
   onPickFromHistory,
@@ -66,6 +70,7 @@ export function StintStartFlow({
   const [activeTab, setActiveTab] = useState<"manual" | "import">(
     isImported ? "import" : "manual"
   );
+  const [predictionTime, setPredictionTime] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const baseline = stint.baseline;
 
@@ -158,6 +163,35 @@ export function StintStartFlow({
       }
     },
     [onBaselineUpdate, onWeatherOverride]
+  );
+
+  // ─── Use weather prediction ────────────────────────────────────
+
+  const handleUsePrediction = useCallback(
+    (timeStr?: string) => {
+      if (!getForecastAtTime) return;
+      let time: Date;
+      if (timeStr) {
+        // Parse HH:MM into today's date
+        const [h, m] = timeStr.split(":").map(Number);
+        time = new Date();
+        time.setHours(h, m, 0, 0);
+      } else {
+        time = new Date();
+      }
+      const forecast = getForecastAtTime(time);
+      if (forecast) {
+        onBaselineUpdate({
+          ambientMeasured: forecast.ambient,
+          asphaltMeasured: forecast.asphalt,
+        });
+        if (onWeatherOverride) {
+          onWeatherOverride("ambient", forecast.ambient);
+          onWeatherOverride("asphalt", forecast.asphalt);
+        }
+      }
+    },
+    [getForecastAtTime, onBaselineUpdate, onWeatherOverride]
   );
 
   // ─── Apply recommended cold pressures ──────────────────────────
@@ -288,6 +322,22 @@ export function StintStartFlow({
               </div>
             )}
 
+            {/* Compound selector */}
+            <div>
+              <Select
+                label="Compound"
+                value={baseline.compound ?? "medium"}
+                onChange={(v) => onBaselineUpdate({ compound: v as CompoundType })}
+                options={[
+                  { value: "soft", label: "Soft" },
+                  { value: "medium", label: "Medium" },
+                  { value: "hard", label: "Hard" },
+                  { value: "wet", label: "Wet" },
+                  { value: "custom", label: "Custom" },
+                ]}
+              />
+            </div>
+
             {/* Cold Tire Temps */}
             <div>
               <h4 className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
@@ -389,6 +439,35 @@ export function StintStartFlow({
                   </span>
                 )}
               </h4>
+
+              {/* Prediction time picker */}
+              {getForecastAtTime && (
+                <div className="flex items-center gap-2 mb-3 p-2 bg-gray-700/40 rounded">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleUsePrediction()}
+                  >
+                    🌤 Use Current Prediction
+                  </Button>
+                  <span className="text-xs text-gray-500">or at:</span>
+                  <input
+                    type="time"
+                    value={predictionTime}
+                    onChange={(e) => setPredictionTime(e.target.value)}
+                    className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 w-28"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleUsePrediction(predictionTime || undefined)}
+                    disabled={!predictionTime}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <NumericInput
                   label="Ambient Temp"

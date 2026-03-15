@@ -8,6 +8,7 @@ export {
   selectReference,
   expandTargets,
   getEffectiveTargetPerCorner,
+  resolveCompoundCoefficients,
 } from "./pressureEngine";
 
 export type {

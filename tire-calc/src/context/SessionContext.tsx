@@ -178,10 +178,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionState((prev) => {
       if (!prev) return prev;
       const lastStint = prev.stints[prev.stints.length - 1];
+      const prevCompound = lastStint?.baseline.compound ?? settings.defaultCompound;
       const newStint = createStint(
         name, 
         lastStint?.baseline.targetMode ?? settings.defaultTargetMode,
-        lastStint?.baseline.targets ?? {}
+        lastStint?.baseline.targets ?? {},
+        prevCompound
       );
       // Apply baseline overrides (e.g. recommended cold pressures, weather conditions)
       if (baselineOverrides) {
@@ -193,7 +195,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         updatedAt: nowISO(),
       };
     });
-  }, [settings.defaultTargetMode]);
+  }, [settings.defaultTargetMode, settings.defaultCompound]);
 
   const updateStintBaseline = useCallback(
     (stintId: string, updates: Partial<StintBaseline>) => {
@@ -382,11 +384,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     ) => {
       setSessionState((prev) => {
         if (!prev) return prev;
+        // Strip weather conditions from imported baseline so they don't
+        // override the current session's ambient/asphalt predictions.
+        const { ambientMeasured, asphaltMeasured, ...importedBaseline } = baseline;
         const stints = prev.stints.map((s) =>
           s.id === stintId
             ? {
                 ...s,
-                baseline: { ...baseline },
+                baseline: { ...importedBaseline },
                 pitstops: pitstops ?? s.pitstops,
                 importedBaseline: {
                   sourceSessionName,

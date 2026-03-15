@@ -25,6 +25,7 @@ import type {
   Corner,
 } from "@/lib/domain/models";
 import { downloadJSON, importStintBaseline } from "@/lib/io/importExport";
+import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
@@ -46,6 +47,13 @@ export default function PlannerPage() {
     importBaselineToStint,
     addUserWeatherOverride,
   } = useSessionContext();
+
+  // --- Weather forecast for the session's location ---
+  const { currentConditions, getForecastAtTime } = useWeatherForecast(
+    session?.latitude,
+    session?.longitude,
+    session?.userWeatherOverrides
+  );
 
   // --- Modal state ---
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
@@ -170,6 +178,7 @@ export default function PlannerPage() {
         targets: stint.baseline?.targets ?? {},
         priorSessions: [],
         settings,
+        compound: stint.baseline?.compound,
       };
 
       try {
@@ -210,6 +219,7 @@ export default function PlannerPage() {
         targets: curBaseline?.targets ?? prevStint.baseline?.targets ?? {},
         priorSessions: [],
         settings,
+        compound: curBaseline?.compound ?? prevStint.baseline?.compound,
       };
 
       try {
@@ -262,6 +272,7 @@ export default function PlannerPage() {
         "startTireTemps",
         "targetMode",
         "targets",
+        "compound",
       ];
       const changedRelevant = relevantKeys.some((k) => k in updates);
       if (!changedRelevant) return;
@@ -414,6 +425,8 @@ export default function PlannerPage() {
                     recommendedColdPressures={
                       nextStintRec?.recommendedColdPressures
                     }
+                    weatherConditions={currentConditions ?? undefined}
+                    getForecastAtTime={getForecastAtTime}
                     onBaselineUpdate={(updates) =>
                       handleBaselineUpdateWithRecompute(stint.id, stintIdx, updates)
                     }

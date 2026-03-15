@@ -10,6 +10,7 @@ import {
   type TargetMode,
   type Targets,
   type WeatherSource,
+  type CompoundType,
   DEFAULT_APP_SETTINGS,
   SCHEMA_VERSION,
   APP_VERSION,
@@ -45,12 +46,13 @@ export function createSession(
 export function createStint(
   name: string,
   targetMode: TargetMode = "single",
-  targets: Targets = {}
+  targets: Targets = {},
+  compound?: CompoundType
 ): Stint {
   return {
     id: generateId(),
     name,
-    baseline: createStintBaseline(targetMode, targets),
+    baseline: createStintBaseline(targetMode, targets, compound ? { compound } : undefined),
     pitstops: [],
   };
 }
