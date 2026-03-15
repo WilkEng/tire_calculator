@@ -47,6 +47,25 @@ function getDB(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
+// ─── Hydration ─────────────────────────────────────────────────────
+
+/**
+ * Normalize an event loaded from IDB so that every array field
+ * expected by the current schema exists — even for records stored
+ * by an older version of the app.
+ */
+function hydrateEvent(raw: unknown): Event {
+  const e = raw as Event;
+  return {
+    ...e,
+    stints: e.stints ?? [],
+    userWeatherOverrides: e.userWeatherOverrides ?? [],
+    weatherSnapshots: e.weatherSnapshots ?? [],
+    temperatureRuns: e.temperatureRuns ?? [],
+    recommendationHistory: e.recommendationHistory ?? [],
+  };
+}
+
 // ─── Event CRUD ──────────────────────────────────────────────────
 
 /** Save or update an event */
@@ -59,14 +78,15 @@ export async function saveEvent(event: Event): Promise<void> {
 /** Get a single event by id */
 export async function getEvent(id: string): Promise<Event | undefined> {
   const db = await getDB();
-  return db.get(SESSIONS_STORE, id);
+  const raw = await db.get(SESSIONS_STORE, id);
+  return raw ? hydrateEvent(raw) : undefined;
 }
 
 /** Get all events, sorted by updatedAt (newest first) */
 export async function getAllEvents(): Promise<Event[]> {
   const db = await getDB();
   const all = await db.getAll(SESSIONS_STORE);
-  return all.sort((a: Event, b: Event) =>
+  return all.map((r) => hydrateEvent(r)).sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt)
   );
 }
@@ -86,7 +106,8 @@ export async function getEventsByTrack(
     .transaction(SESSIONS_STORE)
     .objectStore(SESSIONS_STORE)
     .index("by-track");
-  return index.getAll(trackName);
+  const raw = await index.getAll(trackName);
+  return raw.map((r) => hydrateEvent(r));
 }
 
 // ─── App Settings ──────────────────────────────────────────────────

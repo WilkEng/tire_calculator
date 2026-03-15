@@ -138,7 +138,7 @@ export function importEvent(json: string): EventImportResult {
     return { success: false, errors, warnings };
   }
 
-  const parsed = obj.event;
+  const parsed = obj.event ?? obj.session; // backward compat with old exports
   const eventErrors = validateEvent(parsed);
   if (eventErrors.length > 0) {
     return { success: false, errors: eventErrors, warnings };
@@ -197,14 +197,15 @@ export function importFullBackup(json: string): FullBackupImportResult {
     return { success: false, errors, warnings };
   }
 
-  // Validate events array
-  if (!Array.isArray(obj.events)) {
+  // Validate events array (accept old 'sessions' key for backward compat)
+  const eventsArray = obj.events ?? obj.sessions;
+  if (!Array.isArray(eventsArray)) {
     errors.push("Missing or invalid events array.");
     return { success: false, errors, warnings };
   }
 
-  for (let i = 0; i < (obj.events as unknown[]).length; i++) {
-    const sErrors = validateEvent((obj.events as unknown[])[i]);
+  for (let i = 0; i < (eventsArray as unknown[]).length; i++) {
+    const sErrors = validateEvent((eventsArray as unknown[])[i]);
     for (const e of sErrors) {
       errors.push(`events[${i}]: ${e}`);
     }
@@ -223,7 +224,7 @@ export function importFullBackup(json: string): FullBackupImportResult {
     success: true,
     errors: [],
     warnings,
-    events: obj.events as Event[],
+    events: eventsArray as Event[],
     settings: obj.settings as AppSettings,
   };
 }
