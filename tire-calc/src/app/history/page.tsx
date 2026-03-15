@@ -16,7 +16,7 @@ export default function HistoryPage() {
   const loadSessions = async () => {
     try {
       const data = await getAllSessions();
-      setSessions(data.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      setSessions(data.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")));
     } catch (err) {
       console.error(err);
     } finally {
@@ -74,8 +74,8 @@ export default function HistoryPage() {
                 </h3>
                 <div className="text-sm text-gray-400 space-y-1">
                   <p>Track: {s.trackName || "Unknown"}</p>
-                  <p>{new Date(s.date).toLocaleDateString()}</p>
-                  <span>{s.stints.length} stint(s), {s.stints.flatMap(st => st.pitstops).length} pitstop(s)</span>
+                  <p>{s.date ? new Date(s.date).toLocaleDateString() : "No date"}</p>
+                  <span>{s.stints?.length ?? 0} stint(s), {s.stints?.flatMap(st => st.pitstops).length ?? 0} pitstop(s)</span>
                 </div>
               </div>
               <div className="flex flex-col gap-2 justify-center">

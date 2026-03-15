@@ -193,9 +193,13 @@ export function selectReference(
 
   // We want to collect all pitstops that occurred BEFORE the current one in time.
   // Assuming stints and pitstops are in chronological order:
+  let currentStint: Stint | undefined;
+  let currentPitstop: PitstopEntry | undefined;
   for (const stint of currentSession.stints) {
     for (const pitstop of stint.pitstops) {
       if (stint.id === currentStintId && pitstop.id === currentPitstopId) {
+        currentStint = stint;
+        currentPitstop = pitstop;
         foundCurrent = true;
         break; 
       }
@@ -231,6 +235,19 @@ export function selectReference(
       pitstop: best.pitstop,
       coldPressures: cold,
       source: "same-session-nearest",
+      sameSession: true,
+    };
+  }
+
+  // 2.5: Self-reference — use the current pitstop itself when it has data
+  //      (covers the very first pitstop in the session)
+  if (currentStint && currentPitstop && hasMinimalData(currentStint, currentPitstop)) {
+    const cold = getColdForStint(currentStint) ?? {};
+    return {
+      stint: currentStint,
+      pitstop: currentPitstop,
+      coldPressures: cold,
+      source: "same-session-similar",
       sameSession: true,
     };
   }
@@ -519,7 +536,9 @@ export function computeRecommendation(
   const refCold = ref.coldPressures;
 
   const refHotMeasured = refPitstop.hotMeasuredPressures ?? {};
-  const refTargetHot = getEffectiveTargetPerCorner(refStint, refPitstop);
+  // Use the ACTUAL target hot pressures for feedback, not bled/corrected values.
+  // bled pressures should not affect the feedback correction — only the target matters.
+  const refTargetHot = expandTargets(refStint.baseline.targetMode, refStint.baseline.targets);
 
   const refBaselineConditions = getBaselineConditions(refStint);
   const refAmbient = refBaselineConditions.ambient ?? nextConditions.ambientTemp;
@@ -580,7 +599,10 @@ export function computeRecommendation(
     const coCorr = carryOver.biasPerCorner[corner] ?? 0;
     const nextCold = rCold + feedback - condCorr + coCorr;
     recommended[corner] = round(nextCold, 3);
-    predicted[corner] = round(targetCorners[corner], 3);
+    // Predicted hot = what hot pressure we expect the recommended cold to produce
+    // Using the relationship: predictedHot = recommendedCold + (refHot - refCold) + condCorr
+    const hotRise = rHot - rCold; // observed pressure rise from cold→hot on reference
+    predicted[corner] = round(nextCold + hotRise + condCorr, 3);
     deltas[corner] = round(predicted[corner] - targetCorners[corner], 3);
   }
 

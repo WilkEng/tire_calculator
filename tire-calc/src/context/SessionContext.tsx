@@ -27,6 +27,7 @@ import {
 } from "@/lib/domain/factories";
 import { saveSession, loadSettings, saveSettings } from "@/lib/persistence/db";
 import { nowISO } from "@/lib/utils/helpers";
+import { expandTargets } from "@/lib/engine/pressureEngine";
 
 interface SessionContextValue {
   /** Current active session */
@@ -255,6 +256,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   /**
    * Update a hot pressure corner and auto-copy to bled if not locked.
+   * Default bled: if hot > target → target; if hot ≤ target → hot.
    */
   const updateHotPressure = useCallback(
     (stintId: string, pitstopId: string, corner: Corner, value: number | undefined) => {
@@ -269,7 +271,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             const isLocked = p.bledLocked?.[corner] === true;
             let newBled = p.hotCorrectedPressures;
             if (!isLocked) {
-              newBled = { ...p.hotCorrectedPressures, [corner]: value };
+              // Default: if hot > target → cap bled at target; otherwise keep hot
+              let defaultBled = value;
+              if (value != null) {
+                const targets = expandTargets(stint.baseline.targetMode, stint.baseline.targets);
+                const target = targets[corner];
+                if (target != null && target > 0 && value > target) {
+                  defaultBled = target;
+                }
+              }
+              newBled = { ...p.hotCorrectedPressures, [corner]: defaultBled };
             }
             return {
               ...p,
