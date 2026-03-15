@@ -7,6 +7,8 @@ import type {
   PartialCornerValues,
   AppSettings,
   Event,
+  TargetMode,
+  Targets,
 } from "@/lib/domain/models";
 import { computeRecommendation, resolveMinColdPressure, type RecommendationInput } from "@/lib/engine";
 import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
@@ -35,6 +37,12 @@ interface QuickCalculatorProps {
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
+const TARGET_MODE_OPTIONS = [
+  { value: "single", label: "Single Target" },
+  { value: "front-rear", label: "Front / Rear" },
+  { value: "four-corner", label: "Four Corner" },
+];
+
 // ─── Component ─────────────────────────────────────────────────────
 
 export function QuickCalculator({
@@ -52,6 +60,8 @@ export function QuickCalculator({
   const [calcTireTemps, setCalcTireTemps] = useState<PartialCornerValues>({});
   const [calcPredTime, setCalcPredTime] = useState("");
   const [compoundOverride, setCompoundOverride] = useState<string | null>(null);
+  const [targetModeOverride, setTargetModeOverride] = useState<TargetMode | null>(null);
+  const [targetsOverride, setTargetsOverride] = useState<Targets | null>(null);
 
   // Find reference stint (explicit or latest with pitstop data)
   const refStint = useMemo(() => {
@@ -86,6 +96,12 @@ export function QuickCalculator({
       label: c.name || `Custom (${c.id.slice(0, 6)})`,
     })),
   ], [settings?.customCompounds]);
+
+  // Target: user override → baseline
+  const baselineTargetMode = refStint?.baseline?.targetMode ?? "single";
+  const baselineTargets = refStint?.baseline?.targets ?? {};
+  const selectedTargetMode = targetModeOverride ?? baselineTargetMode;
+  const selectedTargets = targetsOverride ?? baselineTargets;
 
   // Handle prediction fill
   const handleUsePrediction = useCallback(
@@ -129,8 +145,8 @@ export function QuickCalculator({
         asphaltTemp: calcAsphalt!,
         startTireTemps: tireTemps,
       },
-      targetMode: refStint.baseline?.targetMode ?? "single",
-      targets: refStint.baseline?.targets ?? {},
+      targetMode: selectedTargetMode,
+      targets: selectedTargets,
       priorEvents: [],
       settings,
       compound: selectedCompound,
@@ -141,7 +157,7 @@ export function QuickCalculator({
     } catch {
       return null;
     }
-  }, [event, settings, refStint, latestPitstop, hasRequiredInputs, calcAmbient, calcAsphalt, calcTireTemps, selectedCompound]);
+  }, [event, settings, refStint, latestPitstop, hasRequiredInputs, calcAmbient, calcAsphalt, calcTireTemps, selectedCompound, selectedTargetMode, selectedTargets]);
 
   // Can we compute at all? Need event + stint with pitstop data
   const canCompute = !!event && !!refStint && !!latestPitstop && !!settings;
@@ -188,6 +204,92 @@ export function QuickCalculator({
                   onChange={(v) => setCompoundOverride(v)}
                   options={compoundOptions}
                 />
+              </div>
+
+              {/* Target hot pressure */}
+              <div>
+                <div className="text-[11px] text-gray-300 font-medium uppercase tracking-wide mb-2">
+                  Target Hot Pressure
+                </div>
+                <div className="space-y-3">
+                  <Select
+                    label="Target Mode"
+                    value={selectedTargetMode}
+                    onChange={(v) => {
+                      setTargetModeOverride(v as TargetMode);
+                      // Reset targets when mode changes so we don't carry stale values
+                      setTargetsOverride(null);
+                    }}
+                    options={TARGET_MODE_OPTIONS}
+                  />
+
+                  {selectedTargetMode === "single" && (
+                    <NumericInput
+                      label="Target Hot"
+                      unit={pressureUnit}
+                      value={selectedTargets.singleTargetHotPressure}
+                      onChange={(v) =>
+                        setTargetsOverride((prev) => ({
+                          ...(prev ?? baselineTargets),
+                          singleTargetHotPressure: v,
+                        }))
+                      }
+                      placeholder={baselineTargets.singleTargetHotPressure?.toString()}
+                    />
+                  )}
+
+                  {selectedTargetMode === "front-rear" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <NumericInput
+                        label="Front Target"
+                        unit={pressureUnit}
+                        value={selectedTargets.frontTargetHotPressure}
+                        onChange={(v) =>
+                          setTargetsOverride((prev) => ({
+                            ...(prev ?? baselineTargets),
+                            frontTargetHotPressure: v,
+                          }))
+                        }
+                        placeholder={baselineTargets.frontTargetHotPressure?.toString()}
+                      />
+                      <NumericInput
+                        label="Rear Target"
+                        unit={pressureUnit}
+                        value={selectedTargets.rearTargetHotPressure}
+                        onChange={(v) =>
+                          setTargetsOverride((prev) => ({
+                            ...(prev ?? baselineTargets),
+                            rearTargetHotPressure: v,
+                          }))
+                        }
+                        placeholder={baselineTargets.rearTargetHotPressure?.toString()}
+                      />
+                    </div>
+                  )}
+
+                  {selectedTargetMode === "four-corner" && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {CORNERS.map((c) => (
+                        <NumericInput
+                          key={c}
+                          label={`${c} Target`}
+                          unit={pressureUnit}
+                          value={selectedTargets.cornerTargets?.[c]}
+                          onChange={(v) =>
+                            setTargetsOverride((prev) => {
+                              const current = (prev ?? baselineTargets).cornerTargets ?? { FL: 0, FR: 0, RL: 0, RR: 0 };
+                              return {
+                                ...(prev ?? baselineTargets),
+                                cornerTargets: { ...current, [c]: v ?? 0 },
+                              };
+                            })
+                          }
+                          placeholder={baselineTargets.cornerTargets?.[c]?.toString()}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Prediction picker */}
