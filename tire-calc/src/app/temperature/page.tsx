@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useEventContext } from "@/context/EventContext";
+import { useSessionState } from "@/hooks/useSessionState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { NumericInput } from "@/components/ui/NumericInput";
@@ -421,11 +422,12 @@ function CornerChart({
 
 export default function TemperatureAnalysisPage() {
   const { event, updateEvent, settings } = useEventContext();
-  const [selectedGroup, setSelectedGroup] = useState<string>("all");
-  const [comparisonLines, setComparisonLines] = useState<ComparisonLine[]>([]);
-  const [runsExpanded, setRunsExpanded] = useState(false);
+  const eid = event?.id ?? "__none__";
+  const [selectedGroup, setSelectedGroup] = useSessionState<string>(`temp-group-${eid}`, "all");
+  const [comparisonLines, setComparisonLines] = useSessionState<ComparisonLine[]>(`temp-lines-${eid}`, []);
+  const [runsExpanded, setRunsExpanded] = useSessionState(`temp-runsExp-${eid}`, false);
   const [showPyroPicker, setShowPyroPicker] = useState(false);
-  const [importedSources, setImportedSources] = useState<DataSource[]>([]);
+  const [importedSources, setImportedSources] = useSessionState<DataSource[]>(`temp-imported-${eid}`, []);
 
   const spreadThreshold = settings.camberSpreadThreshold ?? 9;
 
