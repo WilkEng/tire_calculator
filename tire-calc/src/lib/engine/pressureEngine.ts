@@ -9,7 +9,8 @@
 //            + learnedCarryOverCorrection
 //
 // Where:
-//   feedbackCorrection  = referenceTargetHot - referenceMeasuredHot
+//   feedbackCorrection  = newTargetHot - referenceMeasuredHot
+//                         (uses the NEW stint's target, not the reference stint's)
 //   conditionCorrection = effectiveTempDelta * kTemp
 //   effectiveTempDelta  = (ambientNext - ambientRef) * kAmbient
 //                       + (asphaltNext - asphaltRef) * kTrack
@@ -543,8 +544,7 @@ export function computeRecommendation(
   const refCold = ref.coldPressures;
 
   const refHotMeasured = refPitstop.hotMeasuredPressures ?? {};
-  // Use the ACTUAL target hot pressures for feedback, not bled/corrected values.
-  // bled pressures should not affect the feedback correction — only the target matters.
+  // Keep refTargetHot for rationale text (describing what happened in the reference stint)
   const refTargetHot = expandTargets(refStint.baseline.targetMode, refStint.baseline.targets);
 
   const refBaselineConditions = getBaselineConditions(refStint);
@@ -578,7 +578,6 @@ export function computeRecommendation(
   for (const corner of CORNERS) {
     const rCold = refCold[corner];
     const rHot = refHotMeasured[corner];
-    const rTarget = refTargetHot[corner];
 
     if (rCold == null || rHot == null) {
       recommended[corner] = targetCorners[corner];
@@ -587,7 +586,11 @@ export function computeRecommendation(
       continue;
     }
 
-    const feedback = computeFeedbackCorrection(rTarget, rHot);
+    // Feedback uses the NEW stint's target, not the reference stint's target.
+    // This matches the Excel formula: nextCold = TARGET - (predictedTemp - nextTire) * kTemp
+    // which expands to: refCold + (newTarget - refHot) - condCorr
+    // When target changes between stints, this correctly shifts cold pressure.
+    const feedback = computeFeedbackCorrection(targetCorners[corner], rHot);
     const refStartTireVal = refStartTire[corner] ?? defaultStartTire;
     const nextStartTireVal =
       nextConditions.startTireTemps?.[corner] ?? defaultStartTire;
@@ -618,12 +621,21 @@ export function computeRecommendation(
   if (refHotFL != null && refTargetFL != null) {
     const diff = round(refHotFL - refTargetFL, 3);
     if (diff > 0) {
-      rationaleLines.push(`Car came in ${Math.abs(diff)} bar high.`);
+      rationaleLines.push(`Car came in ${Math.abs(diff)} bar high (ref target ${refTargetFL}).`);
     } else if (diff < 0) {
-      rationaleLines.push(`Car came in ${Math.abs(diff)} bar low.`);
+      rationaleLines.push(`Car came in ${Math.abs(diff)} bar low (ref target ${refTargetFL}).`);
     } else {
-      rationaleLines.push(`Car came in on target.`);
+      rationaleLines.push(`Car came in on target (${refTargetFL}).`);
     }
+  }
+
+  // Note if target changed between stints
+  const newTargetFL = targetCorners.FL;
+  if (refTargetFL != null && newTargetFL !== refTargetFL) {
+    const tDiff = round(newTargetFL - refTargetFL, 3);
+    rationaleLines.push(
+      `Target changed ${tDiff > 0 ? "+" : ""}${tDiff} bar (${refTargetFL} → ${newTargetFL}).`
+    );
   }
 
   const ambDelta = round(nextConditions.ambientTemp - refAmbient, 1);
