@@ -88,62 +88,67 @@ export default function SettingsPage() {
         </p>
       </Card>
 
-      {/* ── Classic Mode ── */}
-      <Card title="Classic Wilkinson Mode">
-        <label className="flex items-center gap-3 text-sm mb-4">
-          <input
-            type="checkbox"
-            checked={settings.classicModeEnabled}
-            onChange={(e) =>
-              updateSettings({ classicModeEnabled: e.target.checked })
-            }
-            className="accent-[#00d4aa] w-4 h-4"
-          />
-          <span className="text-gray-200">Enable classic mode as baseline</span>
-        </label>
+      {/* ── Compound & Coefficients ── */}
+      <Card title="Compounds & Coefficients">
+        <div className="space-y-5">
+          {/* Classic mode toggles */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.classicModeEnabled}
+                onChange={(e) =>
+                  updateSettings({ classicModeEnabled: e.target.checked })
+                }
+                className="accent-[#00d4aa] w-4 h-4"
+              />
+              <span className="text-gray-200">Enable classic Wilkinson mode as baseline</span>
+            </label>
 
-        <label className="flex items-center gap-3 text-sm mb-4">
-          <input
-            type="checkbox"
-            checked={settings.advancedModeEnabled}
-            onChange={(e) =>
-              updateSettings({ advancedModeEnabled: e.target.checked })
-            }
-            className="accent-[#00d4aa] w-4 h-4"
-          />
-          <span className="text-gray-200">Show advanced coefficient settings</span>
-        </label>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.advancedModeEnabled}
+                onChange={(e) =>
+                  updateSettings({ advancedModeEnabled: e.target.checked })
+                }
+                className="accent-[#00d4aa] w-4 h-4"
+              />
+              <span className="text-gray-200">Show advanced coefficient settings</span>
+            </label>
+          </div>
 
-        {settings.advancedModeEnabled && (
-          <div className="grid grid-cols-3 gap-4 mt-2 p-3 bg-gray-800 rounded">
-            <NumericInput
-              label="k_temp (bar/°C)"
-              value={settings.kTemp}
-              onChange={(v) => updateSettings({ kTemp: v ?? 0.012 })}
-            />
-            <NumericInput
-              label="k_track (asphalt wt)"
-              value={settings.kTrack}
-              onChange={(v) => updateSettings({ kTrack: v ?? 1.75 })}
-            />
-            <NumericInput
-              label="k_ambient (ambient wt)"
-              value={settings.kAmbient}
-              onChange={(v) => updateSettings({ kAmbient: v ?? 1.0 })}
-            />
-            <div className="col-span-3">
-              <p className="text-xs text-gray-500">
-                effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt × k_track)
-                + (ΔStartTire × 1.0) · conditionCorrection = effectiveTempDelta × k_temp
+          {/* Global coefficients (advanced) */}
+          {settings.advancedModeEnabled && (
+            <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/40 space-y-3">
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">
+                Global Coefficients (used when compound = Custom)
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <NumericInput
+                  label="k_temp (bar/°C)"
+                  value={settings.kTemp}
+                  onChange={(v) => updateSettings({ kTemp: v ?? 0.012 })}
+                />
+                <NumericInput
+                  label="k_track (asphalt wt)"
+                  value={settings.kTrack}
+                  onChange={(v) => updateSettings({ kTrack: v ?? 1.75 })}
+                />
+                <NumericInput
+                  label="k_ambient (ambient wt)"
+                  value={settings.kAmbient}
+                  onChange={(v) => updateSettings({ kAmbient: v ?? 1.0 })}
+                />
+              </div>
+              <p className="text-[10px] text-gray-500">
+                effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt × k_track) + (ΔStartTire × 1.0)
+                &middot; conditionCorrection = effectiveTempDelta × k_temp
               </p>
             </div>
-          </div>
-        )}
-      </Card>
+          )}
 
-      {/* ── Compound Coefficients ── */}
-      <Card title="Compound Settings">
-        <div className="space-y-4">
+          {/* Default compound */}
           <Select
             label="Default Compound"
             value={settings.defaultCompound ?? "medium"}
@@ -159,23 +164,27 @@ export default function SettingsPage() {
             ]}
           />
 
-          <p className="text-xs text-gray-500">
-            Each compound has its own k_ambient and k_track weighting.
-            Edit below to adjust per-compound coefficients.
-          </p>
+          {/* Per-compound settings */}
+          <div className="space-y-2">
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">
+              Per-Compound Coefficients &amp; Thresholds
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              Each compound has its own k_ambient, k_track, and minimum cold pressure threshold.
+            </p>
 
-          <div className="space-y-3">
             {(["soft", "medium", "hard", "wet"] as const).map((cmp) => {
               const userCoeffs = settings.compoundCoefficients?.[cmp];
               const defaults = COMPOUND_PRESETS[cmp];
               const kAmb = userCoeffs?.kAmbient ?? defaults.kAmbient;
               const kTrk = userCoeffs?.kTrack ?? defaults.kTrack;
+              const minP = userCoeffs?.minColdPressureBar ?? defaults.minColdPressureBar;
               return (
                 <div
                   key={cmp}
-                  className="grid grid-cols-[100px_1fr_1fr_auto] gap-3 items-end p-3 bg-gray-800 rounded"
+                  className="grid grid-cols-[80px_1fr_1fr_1fr_auto] gap-2 items-end p-3 bg-gray-800/60 rounded-lg border border-gray-700/30"
                 >
-                  <span className="text-sm font-medium text-gray-200 capitalize">
+                  <span className="text-sm font-medium text-gray-200 capitalize pb-1">
                     {cmp}
                   </span>
                   <NumericInput
@@ -186,7 +195,7 @@ export default function SettingsPage() {
                       updateSettings({
                         compoundCoefficients: {
                           ...prev,
-                          [cmp]: { kAmbient: v ?? defaults.kAmbient, kTrack: kTrk },
+                          [cmp]: { ...prev[cmp], kAmbient: v ?? defaults.kAmbient },
                         },
                       });
                     }}
@@ -199,7 +208,20 @@ export default function SettingsPage() {
                       updateSettings({
                         compoundCoefficients: {
                           ...prev,
-                          [cmp]: { kAmbient: kAmb, kTrack: v ?? defaults.kTrack },
+                          [cmp]: { ...prev[cmp], kTrack: v ?? defaults.kTrack },
+                        },
+                      });
+                    }}
+                  />
+                  <NumericInput
+                    label="Min Cold (bar)"
+                    value={minP}
+                    onChange={(v) => {
+                      const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
+                      updateSettings({
+                        compoundCoefficients: {
+                          ...prev,
+                          [cmp]: { ...prev[cmp], minColdPressureBar: v ?? defaults.minColdPressureBar },
                         },
                       });
                     }}
@@ -224,16 +246,19 @@ export default function SettingsPage() {
             })}
           </div>
 
-          <NumericInput
-            label="Min Cold Pressure Warning (bar)"
-            value={settings.minColdPressureBar ?? 1.3}
-            onChange={(v) =>
-              updateSettings({ minColdPressureBar: v ?? 1.3 })
-            }
-          />
-          <p className="text-xs text-gray-500">
-            Cold pressures below this threshold will be highlighted in red.
-          </p>
+          {/* Global fallback min pressure */}
+          <div className="pt-3 border-t border-gray-700/40">
+            <NumericInput
+              label="Global Min Cold Pressure Fallback (bar)"
+              value={settings.minColdPressureBar ?? 1.3}
+              onChange={(v) =>
+                updateSettings({ minColdPressureBar: v ?? 1.3 })
+              }
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Used when no compound-specific threshold is set. Cold pressures below this are highlighted in red.
+            </p>
+          </div>
         </div>
       </Card>
 

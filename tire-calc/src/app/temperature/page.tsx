@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSessionContext } from "@/context/SessionContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -10,16 +10,383 @@ import type {
   TemperatureRun,
   CornerTemperatureReading,
   Corner,
+  FourCornerTemperatureReadings,
 } from "@/lib/domain/models";
 import { createTemperatureRun } from "@/lib/domain/factories";
 import { round } from "@/lib/utils/helpers";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
+const CORNER_LABELS: Record<Corner, string> = {
+  FL: "Front Left",
+  FR: "Front Right",
+  RL: "Rear Left",
+  RR: "Rear Right",
+};
 const ZONES = ["inner", "middle", "outer"] as const;
+
+// ─── Warning thresholds (based on Excel reference) ─────────────────
+
+type WarningLevel = "too_much" | "slightly_too_much" | "perfect" | "slightly_too_little" | "too_little";
+type PressureWarning = "too_high" | "slightly_too_high" | "perfect" | "slightly_too_low" | "too_low";
+
+const WARNING_COLORS: Record<WarningLevel | PressureWarning, string> = {
+  too_much: "#ef4444",
+  slightly_too_much: "#f59e0b",
+  perfect: "#00d4aa",
+  slightly_too_little: "#f59e0b",
+  too_little: "#ef4444",
+  too_high: "#ef4444",
+  slightly_too_high: "#f59e0b",
+  slightly_too_low: "#f59e0b",
+  too_low: "#ef4444",
+};
+
+const WARNING_LABELS: Record<WarningLevel | PressureWarning, string> = {
+  too_much: "Too much camber",
+  slightly_too_much: "Slightly too much camber",
+  perfect: "Perfect",
+  slightly_too_little: "Slightly too little camber",
+  too_little: "Too little camber",
+  too_high: "Pressure too high",
+  slightly_too_high: "Pressure slightly high",
+  slightly_too_low: "Pressure slightly low",
+  too_low: "Pressure too low",
+};
+
+function assessCamber(camberDelta: number): WarningLevel {
+  const abs = Math.abs(camberDelta);
+  if (abs <= 3) return "perfect";
+  if (camberDelta > 0) {
+    // Inner hotter than outer → too much camber
+    return abs <= 8 ? "slightly_too_much" : "too_much";
+  }
+  // Outer hotter → too little camber
+  return abs <= 8 ? "slightly_too_little" : "too_little";
+}
+
+function assessPressure(avgTemp: number, targetAvg: number): PressureWarning {
+  const delta = avgTemp - targetAvg;
+  if (Math.abs(delta) <= 3) return "perfect";
+  if (delta > 0) return delta <= 8 ? "slightly_too_high" : "too_high";
+  return delta >= -8 ? "slightly_too_low" : "too_low";
+}
+
+// ─── Data source types ─────────────────────────────────────────────
+
+interface DataSource {
+  id: string;
+  label: string;
+  type: "run" | "pitstop";
+  readings: Partial<FourCornerTemperatureReadings>;
+}
+
+// ─── Chart tooltip ─────────────────────────────────────────────────
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  unit,
+}: {
+  active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any[];
+  label?: string;
+  unit: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900/95 border border-gray-700 rounded px-3 py-2 shadow-lg text-xs">
+      <p className="text-gray-400 font-medium mb-1">{label}</p>
+      {payload.map((entry: { name: string; value: number; color: string }, i: number) => (
+        <p key={i} className="flex items-center gap-2" style={{ color: entry.color }}>
+          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
+          {entry.name}: {entry.value?.toFixed(1)}°{unit}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ─── Warning Badge Component ───────────────────────────────────────
+
+function WarningBadge({ level, label }: { level: WarningLevel | PressureWarning; label: string }) {
+  const color = WARNING_COLORS[level];
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+      style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}40` }}
+    >
+      {level === "perfect" ? "✓" : "⚠"} {label}
+    </span>
+  );
+}
+
+// ─── Corner Chart Component ────────────────────────────────────────
+
+const ZONE_COLORS = {
+  inner: "#00d4aa",
+  middle: "#3b82f6",
+  outer: "#f59e0b",
+};
+
+function CornerChart({
+  corner,
+  sources,
+  averagedReading,
+  unit,
+}: {
+  corner: Corner;
+  sources: DataSource[];
+  averagedReading: CornerTemperatureReading | null;
+  unit: string;
+}) {
+  // Build chart data: each source becomes one group with inner/middle/outer bars
+  const chartData = useMemo(() => {
+    const items: { name: string; inner: number; middle: number; outer: number }[] = [];
+
+    for (const src of sources) {
+      const r = src.readings[corner];
+      if (!r) continue;
+      items.push({
+        name: src.label.length > 15 ? src.label.slice(0, 14) + "…" : src.label,
+        inner: r.inner,
+        middle: r.middle,
+        outer: r.outer,
+      });
+    }
+
+    if (averagedReading) {
+      items.push({
+        name: "Average",
+        inner: averagedReading.inner,
+        middle: averagedReading.middle,
+        outer: averagedReading.outer,
+      });
+    }
+
+    return items;
+  }, [sources, averagedReading, corner]);
+
+  // Compute derived metrics for this corner
+  const metrics = useMemo(() => {
+    const reading = averagedReading ?? (sources.length === 1 ? sources[0]?.readings[corner] : null);
+    if (!reading) return null;
+
+    const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
+    const camberDelta = round(reading.inner - reading.outer, 1);
+    const camberWarning = assessCamber(camberDelta);
+    // Use 85°C as nominal reference; this is just for relative assessment  
+    const pressureWarning = assessPressure(avg, 85);
+
+    return { avg, camberDelta, camberWarning, pressureWarning };
+  }, [averagedReading, sources, corner]);
+
+  if (chartData.length === 0) {
+    return (
+      <Card title={`${CORNER_LABELS[corner]} (${corner})`}>
+        <div className="text-sm text-gray-500 text-center py-8">
+          No data selected for this corner
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={`${CORNER_LABELS[corner]} (${corner})`}>
+      <div className="space-y-3">
+        {/* Chart */}
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 10 }} />
+              <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} unit="°" />
+              <Tooltip content={<ChartTooltip unit={unit} />} />
+              <Legend
+                wrapperStyle={{ fontSize: 10, color: "#9ca3af" }}
+                iconSize={8}
+              />
+              <Bar dataKey="inner" fill={ZONE_COLORS.inner} name="Inner" radius={[2, 2, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={index}
+                    fill={entry.name === "Average" ? `${ZONE_COLORS.inner}99` : ZONE_COLORS.inner}
+                    stroke={entry.name === "Average" ? ZONE_COLORS.inner : "none"}
+                    strokeWidth={entry.name === "Average" ? 2 : 0}
+                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
+                  />
+                ))}
+              </Bar>
+              <Bar dataKey="middle" fill={ZONE_COLORS.middle} name="Middle" radius={[2, 2, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={index}
+                    fill={entry.name === "Average" ? `${ZONE_COLORS.middle}99` : ZONE_COLORS.middle}
+                    stroke={entry.name === "Average" ? ZONE_COLORS.middle : "none"}
+                    strokeWidth={entry.name === "Average" ? 2 : 0}
+                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
+                  />
+                ))}
+              </Bar>
+              <Bar dataKey="outer" fill={ZONE_COLORS.outer} name="Outer" radius={[2, 2, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={index}
+                    fill={entry.name === "Average" ? `${ZONE_COLORS.outer}99` : ZONE_COLORS.outer}
+                    stroke={entry.name === "Average" ? ZONE_COLORS.outer : "none"}
+                    strokeWidth={entry.name === "Average" ? 2 : 0}
+                    strokeDasharray={entry.name === "Average" ? "4 2" : "none"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Metrics & Warnings */}
+        {metrics && (
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-700/40">
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase">Avg Temp</div>
+              <div className="text-sm font-semibold text-gray-200 tabular-nums">
+                {metrics.avg}°{unit}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase">Δ Camber (In−Out)</div>
+              <div className="text-sm font-semibold text-gray-200 tabular-nums">
+                {metrics.camberDelta > 0 ? "+" : ""}{metrics.camberDelta}°{unit}
+              </div>
+            </div>
+            <div className="col-span-2 flex flex-wrap gap-2">
+              <WarningBadge level={metrics.camberWarning} label={WARNING_LABELS[metrics.camberWarning]} />
+              <WarningBadge level={metrics.pressureWarning} label={WARNING_LABELS[metrics.pressureWarning]} />
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Main Page
+// ═══════════════════════════════════════════════════════════════════
 
 export default function TemperatureAnalysisPage() {
   const { session, updateSession, settings } = useSessionContext();
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
+  const [showAverage, setShowAverage] = useState(true);
+  const [runsExpanded, setRunsExpanded] = useState(false);
+
+  // ── Build all available data sources ──
+  const dataSources: DataSource[] = useMemo(() => {
+    if (!session) return [];
+    const sources: DataSource[] = [];
+
+    // Temperature runs
+    for (let i = 0; i < session.temperatureRuns.length; i++) {
+      const run = session.temperatureRuns[i];
+      sources.push({
+        id: `run-${run.id}`,
+        label: `Run ${i + 1}${run.setupTag ? ` (${run.setupTag})` : ""}`,
+        type: "run",
+        readings: run.readings,
+      });
+    }
+
+    // Pitstops with temperature readings
+    for (const stint of session.stints) {
+      for (const pit of stint.pitstops) {
+        if (pit.temperatureReadings && Object.keys(pit.temperatureReadings).length > 0) {
+          const hasData = CORNERS.some((c) => {
+            const r = pit.temperatureReadings?.[c];
+            return r && (r.inner || r.middle || r.outer);
+          });
+          if (hasData) {
+            sources.push({
+              id: `pit-${pit.id}`,
+              label: `${stint.name} P${pit.index}`,
+              type: "pitstop",
+              readings: pit.temperatureReadings,
+            });
+          }
+        }
+      }
+    }
+
+    return sources;
+  }, [session]);
+
+  // ── Selected sources ──
+  const selectedSources = useMemo(
+    () => dataSources.filter((s) => selectedSourceIds.has(s.id)),
+    [dataSources, selectedSourceIds]
+  );
+
+  // ── Computed averages across selected sources ──
+  const averagedReadings = useMemo(() => {
+    if (selectedSources.length < 2 || !showAverage) return null;
+
+    const result: Record<Corner, CornerTemperatureReading | null> = {
+      FL: null, FR: null, RL: null, RR: null,
+    };
+
+    for (const corner of CORNERS) {
+      let count = 0;
+      let sumI = 0, sumM = 0, sumO = 0;
+
+      for (const src of selectedSources) {
+        const r = src.readings[corner];
+        if (!r) continue;
+        sumI += r.inner;
+        sumM += r.middle;
+        sumO += r.outer;
+        count++;
+      }
+
+      if (count > 0) {
+        result[corner] = {
+          inner: round(sumI / count, 1),
+          middle: round(sumM / count, 1),
+          outer: round(sumO / count, 1),
+        };
+      }
+    }
+
+    return result;
+  }, [selectedSources, showAverage]);
+
+  // ── Toggle source selection ──
+  const toggleSource = useCallback((id: string) => {
+    setSelectedSourceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedSourceIds(new Set(dataSources.map((s) => s.id)));
+  }, [dataSources]);
+
+  const selectNone = useCallback(() => {
+    setSelectedSourceIds(new Set());
+  }, []);
 
   // ── Add new temperature run ──
   const handleAddRun = () => {
@@ -158,9 +525,82 @@ export default function TemperatureAnalysisPage() {
         Probe / pyrometer data is for analysis only. It is not used in the Level 1 pressure recommendation engine.
       </div>
 
+      {/* ── Data Source Selector & Comparison Charts ── */}
+      {dataSources.length > 0 && (
+        <Card title="Comparison Charts">
+          <div className="space-y-4">
+            {/* Source selector */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400 uppercase font-medium">Select Readings to Compare</span>
+                <div className="flex gap-2">
+                  <button onClick={selectAll} className="text-[10px] text-[#00d4aa] hover:text-[#00d4aa]/80">
+                    Select all
+                  </button>
+                  <button onClick={selectNone} className="text-[10px] text-gray-500 hover:text-gray-300">
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {dataSources.map((src) => {
+                  const active = selectedSourceIds.has(src.id);
+                  return (
+                    <button
+                      key={src.id}
+                      onClick={() => toggleSource(src.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        active
+                          ? "bg-[#00d4aa]/15 border-[#00d4aa]/50 text-[#00d4aa]"
+                          : "bg-gray-800/50 border-gray-700/40 text-gray-400 hover:border-gray-600"
+                      }`}
+                    >
+                      {src.type === "pitstop" ? "🏁 " : "🌡 "}
+                      {src.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Average toggle */}
+            {selectedSources.length >= 2 && (
+              <label className="flex items-center gap-2 text-sm text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={showAverage}
+                  onChange={(e) => setShowAverage(e.target.checked)}
+                  className="accent-[#00d4aa] w-4 h-4"
+                />
+                Show combined average
+              </label>
+            )}
+
+            {/* 4-corner charts in 2×2 grid */}
+            {selectedSources.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {CORNERS.map((corner) => (
+                  <CornerChart
+                    key={corner}
+                    corner={corner}
+                    sources={selectedSources}
+                    averagedReading={averagedReadings?.[corner] ?? null}
+                    unit={settings.unitsTemperature}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Select one or more readings above to see comparison charts.
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* ── Group Filter & Averages ── */}
       {(groups.length > 0 || session.temperatureRuns.length > 0) && (
-        <Card title="Averages">
+        <Card title="Run Averages">
           <div className="mb-4">
             <Select
               label="Group / Filter"
@@ -180,36 +620,47 @@ export default function TemperatureAnalysisPage() {
                 Averaging {groupedAverages.runCount} run(s)
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {CORNERS.map((c) => (
-                  <div key={c} className="bg-gray-800 rounded p-3">
-                    <div className="text-xs text-gray-400 font-semibold mb-2">
-                      {c}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-xs text-center mb-2">
-                      <div>
-                        <div className="text-gray-500">Inner</div>
-                        <div className="text-gray-200 tabular-nums">
-                          {groupedAverages.averages[c].inner}°
+                {CORNERS.map((c) => {
+                  const avg = groupedAverages.averages[c];
+                  const camberDelta = round(avg.inner - avg.outer, 1);
+                  const camberLevel = assessCamber(camberDelta);
+                  return (
+                    <div key={c} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/30">
+                      <div className="text-xs text-gray-400 font-semibold mb-2">
+                        {c}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 text-xs text-center mb-2">
+                        <div>
+                          <div className="text-gray-500">Inner</div>
+                          <div className="text-gray-200 tabular-nums">
+                            {avg.inner}°
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Mid</div>
+                          <div className="text-gray-200 tabular-nums">
+                            {avg.middle}°
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Outer</div>
+                          <div className="text-gray-200 tabular-nums">
+                            {avg.outer}°
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-gray-500">Mid</div>
-                        <div className="text-gray-200 tabular-nums">
-                          {groupedAverages.averages[c].middle}°
-                        </div>
+                      <div className="text-center text-sm font-semibold text-[#00d4aa] mb-1">
+                        Avg: {avg.avg}°{settings.unitsTemperature}
                       </div>
-                      <div>
-                        <div className="text-gray-500">Outer</div>
-                        <div className="text-gray-200 tabular-nums">
-                          {groupedAverages.averages[c].outer}°
-                        </div>
+                      <div className="text-center text-[10px] text-gray-400 mb-1">
+                        Δ Camber: {camberDelta > 0 ? "+" : ""}{camberDelta}°
+                      </div>
+                      <div className="flex justify-center">
+                        <WarningBadge level={camberLevel} label={WARNING_LABELS[camberLevel]} />
                       </div>
                     </div>
-                    <div className="text-center text-sm font-semibold text-teal-400">
-                      Avg: {groupedAverages.averages[c].avg}°{settings.unitsTemperature}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -218,26 +669,42 @@ export default function TemperatureAnalysisPage() {
         </Card>
       )}
 
-      {/* ── Individual Runs ── */}
-      {session.temperatureRuns.length === 0 ? (
-        <Card>
+      {/* ── Individual Runs (collapsible) ── */}
+      <Card
+        title="Temperature Runs"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setRunsExpanded(!runsExpanded)}>
+              {runsExpanded ? "Collapse" : "Expand"}
+            </Button>
+            <Button size="sm" onClick={handleAddRun}>
+              + Add Run
+            </Button>
+          </div>
+        }
+      >
+        {session.temperatureRuns.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">
             No temperature runs recorded. Add one to start logging pyrometer / probe readings.
           </p>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {session.temperatureRuns.map((run, idx) => (
-            <Card
-              key={run.id}
-              title={`Run ${idx + 1}`}
-              actions={
-                <Button variant="danger" size="sm" onClick={() => handleDeleteRun(run.id)}>
-                  Remove
-                </Button>
-              }
-            >
-              <div className="space-y-4">
+        ) : !runsExpanded ? (
+          <p className="text-sm text-gray-500">
+            {session.temperatureRuns.length} run(s) recorded. Click &quot;Expand&quot; to view/edit.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {session.temperatureRuns.map((run, idx) => (
+              <div
+                key={run.id}
+                className="p-4 bg-gray-800/40 rounded-lg border border-gray-700/30 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-200">Run {idx + 1}</h4>
+                  <Button variant="danger" size="sm" onClick={() => handleDeleteRun(run.id)}>
+                    Remove
+                  </Button>
+                </div>
+
                 {/* Tags */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <label className="flex flex-col gap-1">
@@ -283,7 +750,7 @@ export default function TemperatureAnalysisPage() {
                 {/* Temperature readings per corner */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {CORNERS.map((corner) => (
-                    <div key={corner} className="bg-gray-800 rounded p-3">
+                    <div key={corner} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/20">
                       <div className="text-xs text-gray-400 font-semibold mb-2">
                         {corner}
                       </div>
@@ -306,10 +773,10 @@ export default function TemperatureAnalysisPage() {
                   ))}
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

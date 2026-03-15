@@ -26,13 +26,15 @@ export type CompoundType = "soft" | "medium" | "hard" | "wet" | "custom";
 export interface CompoundCoefficients {
   kAmbient: number;
   kTrack: number;
+  /** Minimum cold pressure warning threshold for this compound (bar) */
+  minColdPressureBar: number;
 }
 
 export const COMPOUND_PRESETS: Record<Exclude<CompoundType, "custom">, CompoundCoefficients> = {
-  soft:   { kAmbient: 1.10, kTrack: 1.90 },
-  medium: { kAmbient: 1.00, kTrack: 1.75 },
-  hard:   { kAmbient: 0.90, kTrack: 1.55 },
-  wet:    { kAmbient: 0.95, kTrack: 0.70 },
+  soft:   { kAmbient: 1.10, kTrack: 1.90, minColdPressureBar: 1.3 },
+  medium: { kAmbient: 1.00, kTrack: 1.75, minColdPressureBar: 1.3 },
+  hard:   { kAmbient: 0.90, kTrack: 1.55, minColdPressureBar: 1.3 },
+  wet:    { kAmbient: 0.95, kTrack: 0.70, minColdPressureBar: 1.2 },
 };
 
 /** Where a weather data point came from */
@@ -168,6 +170,9 @@ export interface PitstopEntry {
 
   /** Optional hot tire temperatures from pyrometer when car comes in */
   hotTireTemps?: PartialCornerValues;
+
+  /** Pyrometer / probe readings (inner/middle/outer per corner) */
+  temperatureReadings?: Partial<FourCornerTemperatureReadings>;
 
   /** Freeform notes */
   notes?: string;

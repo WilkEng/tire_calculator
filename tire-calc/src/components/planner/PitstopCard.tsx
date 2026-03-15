@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PitstopEntry, Corner } from "@/lib/domain/models";
+import type { PitstopEntry, Corner, CornerTemperatureReading } from "@/lib/domain/models";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,7 @@ const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
 export function PitstopCard({
   pitstop,
+  onUpdate,
   onHotPressureChange,
   onBledPressureChange,
   onResetBledCorner,
@@ -30,9 +31,30 @@ export function PitstopCard({
   pressureUnit,
 }: PitstopCardProps) {
   const [collapsed, setCollapsed] = useState(!isLatest);
+  const [tempsOpen, setTempsOpen] = useState(false);
 
   const getBledDisplayValue = (corner: Corner): number | undefined => {
     return pitstop.hotCorrectedPressures?.[corner] ?? pitstop.hotMeasuredPressures?.[corner];
+  };
+
+  const hasTempData = CORNERS.some((c) => {
+    const r = pitstop.temperatureReadings?.[c];
+    return r && (r.inner != null || r.middle != null || r.outer != null);
+  });
+
+  const handleTempChange = (
+    corner: Corner,
+    field: keyof CornerTemperatureReading,
+    value: number | undefined
+  ) => {
+    const prev = pitstop.temperatureReadings ?? {};
+    const prevCorner = prev[corner] ?? { inner: undefined as unknown as number, middle: undefined as unknown as number, outer: undefined as unknown as number };
+    onUpdate({
+      temperatureReadings: {
+        ...prev,
+        [corner]: { ...prevCorner, [field]: value },
+      },
+    });
   };
 
   return (
@@ -93,7 +115,7 @@ export function PitstopCard({
                         <span className="flex items-center gap-1">
                           {c}
                           {isLocked && (
-                            <span title="Manually edited (locked)">??</span>
+                            <span title="Manually edited (locked)">🔒</span>
                           )}
                         </span>
                       }
@@ -114,6 +136,52 @@ export function PitstopCard({
                 );
               })}
             </div>
+          </div>
+
+          {/* ── Temperature Readings (expandable) ── */}
+          <div className="border-t border-gray-700/50 pt-2">
+            <button
+              onClick={() => setTempsOpen(!tempsOpen)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors w-full"
+            >
+              <span className={`transition-transform ${tempsOpen ? "rotate-90" : ""}`}>▶</span>
+              <span className="font-medium">Pyrometer Readings</span>
+              {hasTempData && (
+                <span className="ml-auto text-[10px] text-[#00d4aa]/70 font-mono">has data</span>
+              )}
+            </button>
+            {tempsOpen && (
+              <div className="mt-3 space-y-3">
+                {CORNERS.map((corner) => {
+                  const reading = pitstop.temperatureReadings?.[corner];
+                  return (
+                    <div key={corner} className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/30">
+                      <div className="text-xs font-medium text-gray-300 mb-2">{corner}</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <NumericInput
+                          label="Inner"
+                          unit="°"
+                          value={reading?.inner}
+                          onChange={(v) => handleTempChange(corner, "inner", v)}
+                        />
+                        <NumericInput
+                          label="Middle"
+                          unit="°"
+                          value={reading?.middle}
+                          onChange={(v) => handleTempChange(corner, "middle", v)}
+                        />
+                        <NumericInput
+                          label="Outer"
+                          unit="°"
+                          value={reading?.outer}
+                          onChange={(v) => handleTempChange(corner, "outer", v)}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -24,6 +24,7 @@ import type {
   StintBaseline,
   Corner,
 } from "@/lib/domain/models";
+import { COMPOUND_PRESETS } from "@/lib/domain/models";
 import { downloadJSON, importStintBaseline } from "@/lib/io/importExport";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 
@@ -511,20 +512,28 @@ export default function PlannerPage() {
                   </div>
 
                   {/* ── Recommendation for this stint ── */}
-                  {stint.pitstops?.length > 0 && (
-                    <ColdPressurePanel
-                      recommendation={recommendation}
-                      pressureUnit={settings.unitsPressure}
-                      temperatureUnit={settings.unitsTemperature}
-                      minColdPressureBar={settings.minColdPressureBar ?? 1.3}
-                      collapsible={true}
-                      defaultCollapsed={true}
-                      session={session}
-                      settings={settings}
-                      currentConditions={currentConditions}
-                      getForecastAtTime={getForecastAtTime}
-                    />
-                  )}
+                  {stint.pitstops?.length > 0 && (() => {
+                    const compound = stint.baseline?.compound;
+                    const compoundKey = compound && compound !== "custom" ? compound : undefined;
+                    const perCompoundMin = compoundKey
+                      ? (settings.compoundCoefficients?.[compoundKey]?.minColdPressureBar ?? COMPOUND_PRESETS[compoundKey].minColdPressureBar)
+                      : undefined;
+                    const effectiveMin = perCompoundMin ?? settings.minColdPressureBar ?? 1.3;
+                    return (
+                      <ColdPressurePanel
+                        recommendation={recommendation}
+                        pressureUnit={settings.unitsPressure}
+                        temperatureUnit={settings.unitsTemperature}
+                        minColdPressureBar={effectiveMin}
+                        collapsible={true}
+                        defaultCollapsed={true}
+                        session={session}
+                        settings={settings}
+                        currentConditions={currentConditions}
+                        getForecastAtTime={getForecastAtTime}
+                      />
+                    );
+                  })()}
                 </div>
               )}
             </div>
