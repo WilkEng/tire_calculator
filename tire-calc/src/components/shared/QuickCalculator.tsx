@@ -128,49 +128,49 @@ export function QuickCalculator({
   const canCompute = !!event && !!refStint && !!latestPitstop && !!settings;
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl overflow-hidden">
+    <div className="bg-gray-900/90 border border-gray-600/70 rounded-xl overflow-hidden shadow-lg shadow-black/20">
       {/* ── Collapsed header (always visible) ── */}
       <button
-        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-700/30 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-800/60 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          <h3 className="text-xs font-semibold text-gray-200 uppercase tracking-wide">
             Quick Calculator
           </h3>
           {result && !expanded && (
-            <span className="text-[10px] text-teal-400 font-medium">
+            <span className="text-xs text-[#00d4aa] font-semibold">
               — {CORNERS.map((c) => result.recommendedColdPressures[c].toFixed(2)).join(" / ")} {pressureUnit}
             </span>
           )}
         </div>
-        <span className="text-gray-500 text-sm">{expanded ? "▲" : "▼"}</span>
+        <span className="text-gray-400 text-sm">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {/* ── Expanded body ── */}
       {expanded && (
-        <div className="px-5 pb-5 border-t border-gray-700/40 space-y-4 pt-4">
+        <div className="px-5 pb-5 border-t border-gray-700/50 space-y-4 pt-4">
           {!canCompute ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-400">
               Load an event with pitstop data to use the quick calculator.
             </p>
           ) : (
             <>
               {/* Reference info */}
-              <div className="text-[10px] text-gray-500">
-                Based on <span className="text-gray-300">{refStint.name}</span>
+              <div className="text-[11px] text-gray-400">
+                Based on <span className="text-gray-200 font-medium">{refStint.name}</span>
                 {refStint.baseline?.compound && (
-                  <> · {refStint.baseline.compound}</>
+                  <> · <span className="text-gray-300">{refStint.baseline.compound}</span></>
                 )}
               </div>
 
               {/* Prediction picker */}
               {getForecastAtTime && (
-                <div className="flex flex-wrap items-center gap-2 p-2 bg-gray-700/30 rounded-lg">
+                <div className="flex flex-wrap items-center gap-2 p-2.5 bg-gray-800/80 border border-gray-700/50 rounded-lg">
                   <Button variant="secondary" size="sm" onClick={() => handleUsePrediction()}>
                     🌤 Now
                   </Button>
-                  <span className="text-[10px] text-gray-500">or at:</span>
+                  <span className="text-[11px] text-gray-400">or at:</span>
                   <input
                     type="time"
                     value={calcPredTime}
@@ -208,8 +208,8 @@ export function QuickCalculator({
 
               {/* Optional cold tire temps */}
               <div>
-                <div className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-2">
-                  Cold Tire Temperatures <span className="text-gray-600">(optional)</span>
+                <div className="text-[11px] text-gray-300 font-medium uppercase tracking-wide mb-2">
+                  Cold Tire Temperatures <span className="text-gray-500">(optional)</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {CORNERS.map((c) => (
@@ -227,19 +227,19 @@ export function QuickCalculator({
 
               {/* Result */}
               {!hasRequiredInputs && (
-                <p className="text-xs text-gray-500 italic">
+                <p className="text-xs text-gray-400 italic">
                   Enter ambient and asphalt temperatures to calculate pressures.
                 </p>
               )}
 
               {result && (
-                <div className="p-3 bg-teal-900/20 border border-teal-700/30 rounded-lg">
+                <div className="p-3 bg-[#00d4aa]/10 border border-[#00d4aa]/25 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] text-teal-400 uppercase tracking-wide font-medium">
+                    <div className="text-[11px] text-[#00d4aa] uppercase tracking-wide font-semibold">
                       Recommended Cold Pressures
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-500">
+                      <span className="text-[11px] text-gray-300 font-medium">
                         {(result.confidenceScore * 100).toFixed(0)}%
                       </span>
                       <div className="w-10 h-1.5 bg-gray-700 rounded-full overflow-hidden">
@@ -265,27 +265,27 @@ export function QuickCalculator({
                       const isBelowMin = cold < minColdPressureBar;
                       return (
                         <div key={c} className="text-center">
-                          <div className="text-[10px] text-gray-500 mb-1 font-medium">{c}</div>
+                          <div className="text-[11px] text-gray-400 mb-1 font-semibold">{c}</div>
                           <div
                             className={`text-2xl font-bold tabular-nums leading-tight ${
-                              isBelowMin ? "text-red-400" : "text-teal-400"
+                              isBelowMin ? "text-red-400" : "text-[#00d4aa]"
                             }`}
                           >
                             {cold.toFixed(2)}
                           </div>
-                          <div className="text-[10px] text-gray-500 mt-0.5">{pressureUnit}</div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">{pressureUnit}</div>
                           {isBelowMin && (
                             <div className="text-[10px] text-red-400 font-medium mt-0.5">
                               ⚠ Below {minColdPressureBar.toFixed(1)}
                             </div>
                           )}
                           <div
-                            className={`text-[10px] mt-1 tabular-nums ${
+                            className={`text-[11px] mt-1 tabular-nums font-medium ${
                               Math.abs(delta) < 0.005
-                                ? "text-teal-400"
+                                ? "text-[#00d4aa]"
                                 : delta > 0
-                                ? "text-yellow-400"
-                                : "text-orange-400"
+                                ? "text-yellow-300"
+                                : "text-orange-300"
                             }`}
                           >
                             {delta >= 0 ? "+" : ""}
@@ -307,12 +307,12 @@ export function QuickCalculator({
                   )}
 
                   {/* Rationale */}
-                  <p className="text-xs text-gray-400 leading-relaxed mt-3">
+                  <p className="text-xs text-gray-300 leading-relaxed mt-3">
                     {result.rationaleText}
                   </p>
 
                   {/* Metadata */}
-                  <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-gray-700/40 text-[10px] text-gray-500">
+                  <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-gray-700/50 text-[11px] text-gray-400">
                     <span>Ref: {result.referenceSource.replace(/-/g, " ")}</span>
                     <span>
                       kT={result.coefficientsUsed.kTemp} kTr=
