@@ -12,7 +12,12 @@ import { NewSessionModal } from "@/components/planner/NewSessionModal";
 import type { NewSessionData } from "@/components/planner/NewSessionModal";
 import { StintStartFlow } from "@/components/planner/StintStartFlow";
 import { BaselinePickerModal } from "@/components/planner/BaselinePickerModal";
-import { computeRecommendation, type RecommendationInput } from "@/lib/engine";
+import {
+  computeRecommendation,
+  selectReference,
+  expandTargets,
+  type RecommendationInput,
+} from "@/lib/engine";
 import type {
   RecommendationOutput,
   Stint,
@@ -141,7 +146,7 @@ export default function PlannerPage() {
     [addUserWeatherOverride]
   );
 
-  // --- Compute recommendation per stint ---
+  // --- Compute recommendation for a stint using its OWN pitstop data ---
   const computeStintRecommendation = useCallback(
     (stintId: string): RecommendationOutput | null => {
       if (!session) return null;
@@ -173,6 +178,46 @@ export default function PlannerPage() {
     [session, settings]
   );
 
+  /**
+   * Compute recommendation for a NEW stint using the PREVIOUS stint as reference
+   * but the CURRENT stint's baseline for nextConditions & targets.
+   *
+   * This is the key function: it answers "what cold pressures should I use for
+   * stint N, given what happened in stint N-1 and the conditions/targets I've
+   * entered for stint N?"
+   */
+  const computeRecForNextStint = useCallback(
+    (prevStint: Stint, currentStint: Stint): RecommendationOutput | null => {
+      if (!session) return null;
+      if (!prevStint.pitstops || prevStint.pitstops.length === 0) return null;
+      const latestPitstop = prevStint.pitstops[prevStint.pitstops.length - 1];
+
+      // Use the current (new) stint's baseline for conditions & targets
+      const curBaseline = currentStint.baseline;
+      const input: RecommendationInput = {
+        currentSession: session,
+        currentStintId: prevStint.id,
+        currentPitstopId: latestPitstop.id,
+        nextConditions: {
+          ambientTemp: curBaseline?.ambientMeasured ?? prevStint.baseline?.ambientMeasured ?? 20,
+          asphaltTemp: curBaseline?.asphaltMeasured ?? prevStint.baseline?.asphaltMeasured ?? 30,
+          startTireTemps: curBaseline?.startTireTemps,
+        },
+        targetMode: curBaseline?.targetMode ?? prevStint.baseline?.targetMode ?? "single",
+        targets: curBaseline?.targets ?? prevStint.baseline?.targets ?? {},
+        priorSessions: [],
+        settings,
+      };
+
+      try {
+        return computeRecommendation(input);
+      } catch {
+        return null;
+      }
+    },
+    [session, settings]
+  );
+
   // --- Add stint with recommended cold pressures ---
   const handleAddStint = useCallback(() => {
     if (!session || !session.stints || session.stints.length === 0) {
@@ -182,6 +227,8 @@ export default function PlannerPage() {
 
     const stintNumber = session.stints.length + 1;
     const lastStint = session.stints[session.stints.length - 1];
+    // Compute initial recommendation using prev stint's conditions as default
+    // (user will tweak in the new stint's StintStartFlow, which triggers live recompute)
     const recommendation = computeStintRecommendation(lastStint.id);
 
     if (recommendation) {
@@ -194,6 +241,46 @@ export default function PlannerPage() {
       addStint(`Stint ${stintNumber}`);
     }
   }, [session, addStint, computeStintRecommendation]);
+
+  /**
+   * When user edits baseline on a non-first stint, auto-recompute cold pressures
+   * from prev stint pitstop data + new conditions/targets.
+   */
+  const handleBaselineUpdateWithRecompute = useCallback(
+    (stintId: string, stintIdx: number, updates: Partial<StintBaseline>) => {
+      // Always write the update
+      updateStintBaseline(stintId, updates);
+
+      // If this is stint 2+ and user changed conditions/targets, recompute cold
+      if (!session || stintIdx === 0) return;
+      const relevantKeys: (keyof StintBaseline)[] = [
+        "ambientMeasured",
+        "asphaltMeasured",
+        "startTireTemps",
+        "targetMode",
+        "targets",
+      ];
+      const changedRelevant = relevantKeys.some((k) => k in updates);
+      if (!changedRelevant) return;
+
+      const prevStint = session.stints[stintIdx - 1];
+      const currentStint = session.stints.find((s) => s.id === stintId);
+      if (!prevStint || !currentStint) return;
+
+      // Merge the pending updates into a temporary view of the current baseline
+      const mergedBaseline = { ...currentStint.baseline, ...updates };
+      const tempStint = { ...currentStint, baseline: mergedBaseline };
+
+      const rec = computeRecForNextStint(prevStint, tempStint);
+      if (rec) {
+        // Apply both the user's edits and the recomputed cold pressures together
+        updateStintBaseline(stintId, {
+          coldPressures: rec.recommendedColdPressures,
+        });
+      }
+    },
+    [session, updateStintBaseline, computeRecForNextStint]
+  );
 
   // --- Toggle stint collapse ---
   const toggleStintCollapse = useCallback((stintId: string) => {
@@ -260,11 +347,12 @@ export default function PlannerPage() {
           const isLastStint = stintIdx === (session.stints?.length ?? 0) - 1;
           const recommendation = computeStintRecommendation(stint.id);
 
-          // Get recommended cold from previous stint (for StintStartFlow)
-          let priorRec: RecommendationOutput | null = null;
+          // Compute live recommendation for this stint from the PREVIOUS stint's
+          // pitstop data + THIS stint's conditions/targets.
+          let nextStintRec: RecommendationOutput | null = null;
           if (stintIdx > 0) {
             const prevStint = session.stints![stintIdx - 1];
-            priorRec = computeStintRecommendation(prevStint.id);
+            nextStintRec = computeRecForNextStint(prevStint, stint);
           }
 
           return (
@@ -320,10 +408,10 @@ export default function PlannerPage() {
                     temperatureUnit={settings.unitsTemperature}
                     isImported={!!stint.importedBaseline}
                     recommendedColdPressures={
-                      priorRec?.recommendedColdPressures
+                      nextStintRec?.recommendedColdPressures
                     }
                     onBaselineUpdate={(updates) =>
-                      updateStintBaseline(stint.id, updates)
+                      handleBaselineUpdateWithRecompute(stint.id, stintIdx, updates)
                     }
                     onImportBaseline={(file) =>
                       handleImportBaseline(stint.id, file)
