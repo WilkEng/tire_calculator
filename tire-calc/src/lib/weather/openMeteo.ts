@@ -389,17 +389,21 @@ export function buildChartData(
 ): ChartDataPoint[] {
   if (forecastPoints.length === 0) return [];
 
-  // Filter overrides: by stint if provided, otherwise fall back to today-only
+  // Filter overrides:
+  // 1. Only keep overrides whose timestamp is from today (so reopened
+  //    historical events don't shift the live forecast).
+  // 2. If an activeStintId is provided, additionally require a stintId match
+  //    so each stint's measurements only affect its own chart view.
   let overrides = userOverrides ?? [];
   if (overrides.length > 0) {
-    if (filterStintId) {
-      overrides = overrides.filter((o) => o.stintId === filterStintId);
-    } else {
-      // Fallback: only use today's overrides so old events don't skew
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      overrides = overrides.filter((o) => new Date(o.timestamp).getTime() >= startOfDay);
-    }
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    overrides = overrides.filter((o) => {
+      const isFromToday = new Date(o.timestamp).getTime() >= startOfDay;
+      if (!isFromToday) return false;
+      if (filterStintId) return o.stintId === filterStintId;
+      return true;
+    });
   }
 
   // Build per-field offset entries from all overrides

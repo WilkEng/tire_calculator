@@ -10,6 +10,7 @@ import type {
   Corner,
   Stint,
   AppSettings,
+  UserWeatherOverride,
 } from "@/lib/domain/models";
 import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import { resolveMinColdPressure } from "@/lib/engine";
@@ -43,6 +44,8 @@ interface StintStartFlowProps {
   onPickFromHistory: () => void;
   /** Callback when user changes ambient/asphalt (for recording overrides) */
   onWeatherOverride?: (field: "ambient" | "asphalt", value: number, measurementTime?: Date) => void;
+  /** All weather overrides on the event (used to display condition timestamps) */
+  weatherOverrides?: UserWeatherOverride[];
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -71,6 +74,7 @@ export function StintStartFlow({
   onImportBaseline,
   onPickFromHistory,
   onWeatherOverride,
+  weatherOverrides,
 }: StintStartFlowProps) {
   const [activeTab, setActiveTab] = useState<"manual" | "import">(
     isImported ? "import" : "manual"
@@ -559,6 +563,20 @@ export function StintStartFlow({
                   placeholder={weatherConditions?.asphalt.toString()}
                 />
               </div>
+              {(() => {
+                const latest = (weatherOverrides ?? [])
+                  .filter((o) => o.stintId === stint.id)
+                  .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+                if (!latest) return null;
+                const d = new Date(latest.timestamp);
+                return (
+                  <div className="text-[10px] text-gray-500 mt-1">
+                    Recorded at {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {" \u00b7 "}
+                    {d.toLocaleDateString()}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -659,6 +677,7 @@ function BaselineReadonlyDisplay({
           </span>
         </div>
       </div>
+
     </div>
   );
 }

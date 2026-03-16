@@ -452,6 +452,7 @@ export default function PlannerPage() {
                     onWeatherOverride={(field, value, time) =>
                       handleWeatherOverride(field, value, time, stint.id)
                     }
+                    weatherOverrides={event.userWeatherOverrides}
                   />
 
                   {/* -- Pitstops -- */}
