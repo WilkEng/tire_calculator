@@ -138,6 +138,45 @@ export function getColdForStint(
 }
 
 /**
+ * Compute the effective cold pressures for a reference pitstop, accounting
+ * for any bleeding that occurred at PRECEDING pitstops within the same stint.
+ *
+ * When a tire is bled between pitstops, its resting cold pressure drops by
+ * the amount vented: (bledHot − measuredHot) for each prior pitstop.
+ * The reference pitstop's OWN bleed is NOT included — that over/under is
+ * handled by the feedback correction term.
+ *
+ * Formula:  Ceff = C0 + Σ(Bi − Hi) for i = 1 … N−1
+ *   where N is the reference pitstop index within its stint.
+ */
+export function getEffectiveColdForReference(
+  stint: Stint,
+  refPitstopId: string,
+): PartialCornerValues {
+  const baseline = getColdForStint(stint) ?? {};
+  const result: PartialCornerValues = { ...baseline };
+
+  for (const pitstop of stint.pitstops) {
+    // Stop BEFORE the reference pitstop itself
+    if (pitstop.id === refPitstopId) break;
+
+    const hot = pitstop.hotMeasuredPressures ?? {};
+    const bled = getEffectiveBledPressures(pitstop);
+
+    for (const corner of CORNERS) {
+      const hVal = hot[corner];
+      const bVal = bled[corner];
+      if (hVal != null && bVal != null && bVal !== hVal) {
+        // bVal < hVal when pressure was vented → negative adjustment
+        result[corner] = (result[corner] ?? 0) + (bVal - hVal);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Get the reference conditions (ambient, asphalt, tire temps) for a stint.
  */
 export function getBaselineConditions(
@@ -266,7 +305,7 @@ export function selectReference(
   // 1: nearest similar (same target mode)
   const similar = sameEventCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
   if (similar) {
-    const cold = getColdForStint(similar.stint) ?? {};
+    const cold = getEffectiveColdForReference(similar.stint, similar.pitstop.id);
     return {
       stint: similar.stint,
       pitstop: similar.pitstop,
@@ -279,7 +318,7 @@ export function selectReference(
   // 2: nearest any
   if (sameEventCandidates.length > 0) {
     const best = sameEventCandidates[0];
-    const cold = getColdForStint(best.stint) ?? {};
+    const cold = getEffectiveColdForReference(best.stint, best.pitstop.id);
     return {
       stint: best.stint,
       pitstop: best.pitstop,
@@ -292,7 +331,7 @@ export function selectReference(
   // 2.5: Self-reference — use the current pitstop itself when it has data
   //      (covers the very first pitstop in the event)
   if (currentStint && currentPitstop && hasMinimalData(currentStint, currentPitstop)) {
-    const cold = getColdForStint(currentStint) ?? {};
+    const cold = getEffectiveColdForReference(currentStint, currentPitstop.id);
     return {
       stint: currentStint,
       pitstop: currentPitstop,
@@ -326,7 +365,7 @@ export function selectReference(
     // 3: same track + same target mode
     const sameMode = priorCandidates.find((c) => c.stint.baseline.targetMode === targetMode);
     if (sameMode) {
-      const cold = getColdForStint(sameMode.stint) ?? {};
+      const cold = getEffectiveColdForReference(sameMode.stint, sameMode.pitstop.id);
       return {
         stint: sameMode.stint,
         pitstop: sameMode.pitstop,
@@ -339,7 +378,7 @@ export function selectReference(
     // 4: same track, any mode
     if (priorCandidates.length > 0) {
       const best = priorCandidates[0];
-      const cold = getColdForStint(best.stint) ?? {};
+      const cold = getEffectiveColdForReference(best.stint, best.pitstop.id);
       return {
         stint: best.stint,
         pitstop: best.pitstop,
@@ -622,6 +661,23 @@ export function computeRecommendation(
   rationaleLines.push(
     `Using pitstop ${refPitstop.index} from stint '${refStint.name}' as reference (${ref.source.replace(/-/g, " ")}).`
   );
+
+  // Note bleed adjustment in rationale when effective cold differs from baseline
+  const baselineCold = getColdForStint(refStint) ?? {};
+  const bledAdjParts: string[] = [];
+  for (const corner of CORNERS) {
+    const base = baselineCold[corner];
+    const eff = refCold[corner];
+    if (base != null && eff != null) {
+      const adj = round(eff - base, 2);
+      if (adj !== 0) bledAdjParts.push(`${corner} ${adj > 0 ? "+" : ""}${adj}`);
+    }
+  }
+  if (bledAdjParts.length > 0) {
+    rationaleLines.push(
+      `Effective cold adjusted for prior bleeds: ${bledAdjParts.join(", ")} bar.`
+    );
+  }
 
   for (const corner of CORNERS) {
     const rCold = refCold[corner];

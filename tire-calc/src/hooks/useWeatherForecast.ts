@@ -118,7 +118,27 @@ export function useWeatherForecast(
   const chartData = buildChartData(forecastPoints, userOverrides, activeStintId);
   const hourlyCards = buildHourlyCards(forecastPoints);
 
+  // Helper: find nearest chart data point by epoch
+  const findNearestChartPoint = useCallback(
+    (time: Date): ChartDataPoint | null => {
+      if (chartData.length === 0) return null;
+      const target = time.getTime();
+      let best = chartData[0];
+      let bestDiff = Math.abs(best.epoch - target);
+      for (const p of chartData) {
+        const diff = Math.abs(p.epoch - target);
+        if (diff < bestDiff) {
+          best = p;
+          bestDiff = diff;
+        }
+      }
+      return best;
+    },
+    [chartData]
+  );
+
   // Current conditions: find nearest forecast point to "now"
+  // Prefer user-offset-corrected values when available
   let currentConditions: UseWeatherForecastResult["currentConditions"] = null;
   if (forecastPoints.length > 0) {
     const now = new Date();
@@ -140,9 +160,14 @@ export function useWeatherForecast(
       best.cloudCover
     );
 
+    // Check if chart data has user-corrected values for this time
+    const nearestChart = findNearestChartPoint(now);
+    const ambient = nearestChart?.userAmbient ?? best.ambient;
+    const asphaltVal = nearestChart?.userAsphalt ?? Math.round(asphalt * 10) / 10;
+
     currentConditions = {
-      ambient: best.ambient,
-      asphalt: Math.round(asphalt * 10) / 10,
+      ambient,
+      asphalt: asphaltVal,
       cloudCover: best.cloudCover,
       windSpeed: best.windSpeed,
       humidity: best.humidity,
@@ -150,9 +175,13 @@ export function useWeatherForecast(
   }
 
   // Get forecast conditions at any time (nearest point)
+  // Uses user-offset-corrected values when overrides are present,
+  // otherwise raw API values.
   const getForecastAtTime = useCallback(
     (time: Date): { ambient: number; asphalt: number } | null => {
       if (forecastPoints.length === 0) return null;
+
+      // Find nearest raw forecast point for fallback
       let best = forecastPoints[0];
       let bestDiff = Math.abs(new Date(best.time).getTime() - time.getTime());
       for (const p of forecastPoints) {
@@ -162,18 +191,21 @@ export function useWeatherForecast(
           bestDiff = diff;
         }
       }
-      const asphalt = estimateAsphaltTemp(
+      const apiAsphalt = estimateAsphaltTemp(
         best.ambient,
         best.shortwaveRadiation,
         best.windSpeed,
         best.cloudCover
       );
+
+      // Prefer user-corrected values from chart data
+      const nearestChart = findNearestChartPoint(time);
       return {
-        ambient: Math.round(best.ambient * 10) / 10,
-        asphalt: Math.round(asphalt * 10) / 10,
+        ambient: nearestChart?.userAmbient ?? Math.round(best.ambient * 10) / 10,
+        asphalt: nearestChart?.userAsphalt ?? Math.round(apiAsphalt * 10) / 10,
       };
     },
-    [forecastPoints]
+    [forecastPoints, findNearestChartPoint]
   );
 
   return {
