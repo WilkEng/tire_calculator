@@ -153,8 +153,11 @@ export default function PlannerPage() {
   );
 
   // --- Compute recommendation for a stint using its OWN pitstop data ---
+  // When `useAllPitstops` is true, a sentinel is used as the current pitstop
+  // so that ALL pitstops (including the last one) become reference candidates.
+  // This is needed for the "next stint" scenario.
   const computeStintRecommendation = useCallback(
-    (stintId: string): RecommendationOutput | null => {
+    (stintId: string, useAllPitstops = false): RecommendationOutput | null => {
       if (!event) return null;
       const stint = event.stints?.find((s) => s.id === stintId);
       if (!stint || !stint.pitstops || stint.pitstops.length === 0) return null;
@@ -162,8 +165,8 @@ export default function PlannerPage() {
 
       const input: RecommendationInput = {
         currentEvent: event,
-        currentStintId: stint.id,
-        currentPitstopId: latestPitstop.id,
+        currentStintId: useAllPitstops ? "__after_stint_sentinel__" : stint.id,
+        currentPitstopId: useAllPitstops ? "__after_stint_sentinel__" : latestPitstop.id,
         nextConditions: {
           ambientTemp: stint.baseline?.ambientMeasured ?? 20,
           asphaltTemp: stint.baseline?.asphaltMeasured ?? 30,
@@ -197,14 +200,16 @@ export default function PlannerPage() {
     (prevStint: Stint, currentStint: Stint): RecommendationOutput | null => {
       if (!event) return null;
       if (!prevStint.pitstops || prevStint.pitstops.length === 0) return null;
-      const latestPitstop = prevStint.pitstops[prevStint.pitstops.length - 1];
 
-      // Use the current (new) stint's baseline for conditions & targets
+      // Use the CURRENT (new) stint as the "current" context so that
+      // selectReference collects ALL pitstops from the previous stint
+      // (including the last one) as candidates.  A sentinel pitstop ID
+      // ensures nothing in the new stint is accidentally matched.
       const curBaseline = currentStint.baseline;
       const input: RecommendationInput = {
         currentEvent: event,
-        currentStintId: prevStint.id,
-        currentPitstopId: latestPitstop.id,
+        currentStintId: currentStint.id,
+        currentPitstopId: "__next_stint_sentinel__",
         nextConditions: {
           ambientTemp: curBaseline?.ambientMeasured ?? prevStint.baseline?.ambientMeasured ?? 20,
           asphaltTemp: curBaseline?.asphaltMeasured ?? prevStint.baseline?.asphaltMeasured ?? 30,
@@ -235,9 +240,9 @@ export default function PlannerPage() {
 
     const stintNumber = event.stints.length + 1;
     const lastStint = event.stints[event.stints.length - 1];
-    // Compute initial recommendation using prev stint's conditions as default
-    // (user will tweak in the new stint's StintStartFlow, which triggers live recompute)
-    const recommendation = computeStintRecommendation(lastStint.id);
+    // Compute initial recommendation using ALL pitstops from the last stint
+    // (useAllPitstops=true so the last pitstop's data is also included)
+    const recommendation = computeStintRecommendation(lastStint.id, true);
 
     if (recommendation) {
       addStint(`Stint ${stintNumber}`, {

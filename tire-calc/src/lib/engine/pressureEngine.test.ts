@@ -328,3 +328,84 @@ describe("selectReference – bleed-adjusted cold pressures", () => {
     expect(ref!.coldPressures.FL).toBeCloseTo(1.15, 4);
   });
 });
+
+// ─── Next-stint sentinel: all pitstops used as reference candidates ──
+
+describe("computeRecommendation – next-stint sentinel approach", () => {
+  const settings: AppSettings = { ...DEFAULT_APP_SETTINGS };
+
+  it("sentinel IDs let selectReference use the last pitstop as reference", () => {
+    const cold = { FL: 1.3, FR: 1.3, RL: 1.3, RR: 1.3 };
+    const p1 = makePitstop(
+      "p1", 1,
+      { FL: 2.1, FR: 2.1, RL: 2.1, RR: 2.1 },
+      { FL: 1.95, FR: 1.95, RL: 1.95, RR: 1.95 }
+    );
+    const p2 = makePitstop(
+      "p2", 2,
+      { FL: 1.99, FR: 1.99, RL: 1.99, RR: 1.99 },
+      { FL: 1.95, FR: 1.95, RL: 1.95, RR: 1.95 }
+    );
+    const stint = makeStint("s1", "FP1", cold, [p1, p2], {
+      singleTarget: 1.95,
+      ambient: 25,
+      asphalt: 30,
+    });
+    const event = makeEvent([stint]);
+
+    // Simulate what computeRecForNextStint does: sentinel IDs for new stint
+    const result = computeRecommendation({
+      currentEvent: event,
+      currentStintId: "__after_stint_sentinel__",
+      currentPitstopId: "__after_stint_sentinel__",
+      nextConditions: { ambientTemp: 25, asphaltTemp: 30 },
+      targetMode: "single",
+      targets: { singleTargetHotPressure: 1.95 },
+      priorEvents: [],
+      settings,
+      compound: "medium",
+    });
+
+    // ref=p2 (latest with data), Ceff=1.3+(1.95-2.1)=1.15, feedback=1.95-1.99=-0.04
+    // nextCold = 1.15 + (-0.04) = 1.11
+    expect(result.recommendedColdPressures.FL).toBeCloseTo(1.11, 2);
+    expect(result.predictedHotPressures.FL).toBeCloseTo(1.95, 2);
+  });
+
+  it("without sentinel, last pitstop's data is NOT used as reference (old behavior)", () => {
+    const cold = { FL: 1.3, FR: 1.3, RL: 1.3, RR: 1.3 };
+    const p1 = makePitstop(
+      "p1", 1,
+      { FL: 2.1, FR: 2.1, RL: 2.1, RR: 2.1 },
+      { FL: 1.95, FR: 1.95, RL: 1.95, RR: 1.95 }
+    );
+    const p2 = makePitstop(
+      "p2", 2,
+      { FL: 1.99, FR: 1.99, RL: 1.99, RR: 1.99 },
+      { FL: 1.95, FR: 1.95, RL: 1.95, RR: 1.95 }
+    );
+    const stint = makeStint("s1", "FP1", cold, [p1, p2], {
+      singleTarget: 1.95,
+      ambient: 25,
+      asphalt: 30,
+    });
+    const event = makeEvent([stint]);
+
+    // Old approach: passing p2 as currentPitstopId → only p1 is a candidate
+    const result = computeRecommendation({
+      currentEvent: event,
+      currentStintId: "s1",
+      currentPitstopId: "p2",
+      nextConditions: { ambientTemp: 25, asphaltTemp: 30 },
+      targetMode: "single",
+      targets: { singleTargetHotPressure: 1.95 },
+      priorEvents: [],
+      settings,
+      compound: "medium",
+    });
+
+    // ref=p1, Ceff=1.3 (no prior bleeds), feedback=1.95-2.1=-0.15
+    // nextCold = 1.3 + (-0.15) = 1.15
+    expect(result.recommendedColdPressures.FL).toBeCloseTo(1.15, 2);
+  });
+});
