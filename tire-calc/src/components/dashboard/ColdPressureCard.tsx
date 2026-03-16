@@ -1,13 +1,14 @@
 "use client";
 
 import type { RecommendationOutput, Corner } from "@/lib/domain/models";
-import { displayPressure, pressureDecimals } from "@/lib/utils/helpers";
+import { displayPressure, displayKTemp, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface ColdPressureCardProps {
   recommendation: RecommendationOutput | null;
   pressureUnit: string;
+  temperatureUnit: string;
   /** Description of conditions used, e.g. "Based on Stint 1 → API forecast" */
   conditionsLabel?: string;
   /** Threshold below which cold pressure shows a red warning (bar) */
@@ -21,6 +22,7 @@ const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 export function ColdPressureCard({
   recommendation,
   pressureUnit,
+  temperatureUnit,
   conditionsLabel,
   minColdPressureBar = 1.3,
 }: ColdPressureCardProps) {
@@ -131,7 +133,7 @@ export function ColdPressureCard({
           Ref: {recommendation.referenceSource.replace(/-/g, " ")}
         </span>
         <span>
-          kT={recommendation.coefficientsUsed.kTemp} kTr=
+          kT={displayKTemp(recommendation.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(4)} kTr=
           {recommendation.coefficientsUsed.kTrack} kA=
           {recommendation.coefficientsUsed.kAmbient}
         </span>

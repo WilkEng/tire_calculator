@@ -1,9 +1,11 @@
 "use client";
 
+import { useEventContext } from "@/context/EventContext";
 import { Card } from "@/components/ui/Card";
 import { AdBanner } from "@/components/shared/AdBanner";
 
 export default function HelpPage() {
+  const { settings } = useEventContext();
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <h1 className="text-xl font-bold text-gray-100">Help &amp; User Manual</h1>
@@ -274,7 +276,7 @@ export default function HelpPage() {
             </li>
             <li>
               <strong className="text-gray-100">Camber Spread Threshold</strong> —
-              the inner-vs-outer temperature delta (°C) before a warning
+              the inner-vs-outer temperature delta (°{settings.unitsTemperature}) before a warning
               appears on the temperature page.
             </li>
           </ul>

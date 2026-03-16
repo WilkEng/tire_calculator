@@ -481,7 +481,7 @@ export function StintStartFlow({
                 Conditions
                 {weatherConditions && (
                   <span className="text-gray-500 normal-case font-normal ml-2">
-                    (API: {displayTemp(weatherConditions.ambient, temperatureUnit).toFixed(1)}°/{displayTemp(weatherConditions.asphalt, temperatureUnit).toFixed(1)}° — your input overrides)
+                    (API: {displayTemp(weatherConditions.ambient, temperatureUnit).toFixed(1)}°{temperatureUnit}/{displayTemp(weatherConditions.asphalt, temperatureUnit).toFixed(1)}°{temperatureUnit} — your input overrides)
                   </span>
                 )}
               </h4>

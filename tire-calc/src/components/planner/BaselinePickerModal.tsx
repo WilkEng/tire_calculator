@@ -202,12 +202,12 @@ export function BaselinePickerModal({
                                       </span>
                                       {stint.baseline.ambientMeasured != null && (
                                         <span>
-                                          Amb: {displayTemp(stint.baseline.ambientMeasured, temperatureUnit).toFixed(1)}°
+                                          Amb: {displayTemp(stint.baseline.ambientMeasured, temperatureUnit).toFixed(1)}°{temperatureUnit}
                                         </span>
                                       )}
                                       {stint.baseline.asphaltMeasured != null && (
                                         <span>
-                                          Asp: {displayTemp(stint.baseline.asphaltMeasured, temperatureUnit).toFixed(1)}°
+                                          Asp: {displayTemp(stint.baseline.asphaltMeasured, temperatureUnit).toFixed(1)}°{temperatureUnit}
                                         </span>
                                       )}
                                     </div>

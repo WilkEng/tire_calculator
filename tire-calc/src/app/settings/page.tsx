@@ -10,7 +10,7 @@ import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/mod
 import { COMPOUND_PRESETS, BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import type { CustomCompound } from "@/lib/domain/models";
 import { generateId } from "@/lib/utils/helpers";
-import { displayTemp, inputTemp, displayPressure, inputPressure, pressureDecimals, displayTempDelta, inputTempDelta } from "@/lib/utils/helpers";
+import { displayTemp, inputTemp, displayPressure, inputPressure, displayKTemp, inputKTemp, pressureDecimals, displayTempDelta, inputTempDelta } from "@/lib/utils/helpers";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useEventContext();
@@ -134,13 +134,12 @@ export default function SettingsPage() {
       <Card title="Pressure Sensitivity">
         <div className="space-y-3">
           <NumericInput
-            label={`k_temp (${settings.unitsPressure}/°C)`}
-            value={displayPressure(settings.kTemp, settings.unitsPressure)}
-            onChange={(v) => updateSettings({ kTemp: v != null ? inputPressure(v, settings.unitsPressure) : 0.0105 })}
+            label={`k_temp (${settings.unitsPressure}/°${settings.unitsTemperature})`}
+            value={displayKTemp(settings.kTemp, settings.unitsPressure, settings.unitsTemperature)}
+            onChange={(v) => updateSettings({ kTemp: v != null ? inputKTemp(v, settings.unitsPressure, settings.unitsTemperature) : 0.0105 })}
           />
           <p className="text-xs text-gray-500">
-            How much cold pressure changes per °C of temperature delta.
-            Higher = more aggressive corrections.
+            {`How much cold pressure changes per °${settings.unitsTemperature} of temperature delta. Higher = more aggressive corrections.`}
           </p>
         </div>
       </Card>

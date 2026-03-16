@@ -2,16 +2,18 @@
 
 import type { RecommendationOutput } from "@/lib/domain/models";
 import { Card } from "@/components/ui/Card";
-import { displayPressure, pressureDecimals } from "@/lib/utils/helpers";
+import { displayPressure, displayKTemp, pressureDecimals } from "@/lib/utils/helpers";
 
 interface RecommendationPanelProps {
   recommendation: RecommendationOutput | null;
   pressureUnit: string;
+  temperatureUnit: string;
 }
 
 export function RecommendationPanel({
   recommendation,
   pressureUnit,
+  temperatureUnit,
 }: RecommendationPanelProps) {
   if (!recommendation) {
     return (
@@ -83,7 +85,7 @@ export function RecommendationPanel({
           Confidence: {(r.confidenceScore * 100).toFixed(0)}%
         </span>
         <span>
-          k_temp={r.coefficientsUsed.kTemp} · k_track=
+          k_temp={displayKTemp(r.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(4)} · k_track=
           {r.coefficientsUsed.kTrack} · k_ambient=
           {r.coefficientsUsed.kAmbient}
         </span>

@@ -1,7 +1,7 @@
 // Tire Calc – Service Worker
 // Cache-first for app shell, network-first for API/weather
 
-const CACHE_NAME = "tire-calc-v2";
+const CACHE_NAME = "tire-calc-v3";
 
 // App shell files to pre-cache on install
 const APP_SHELL = [

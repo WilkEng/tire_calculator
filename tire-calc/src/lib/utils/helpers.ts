@@ -93,6 +93,16 @@ export function inputTempDelta(delta: number, unit: string): number {
   return unit === "F" ? delta / 1.8 : delta;
 }
 
+/** Display a kTemp value (bar/°C → user-pressure / user-temp) — compound-unit conversion */
+export function displayKTemp(barPerC: number, pUnit: string, tUnit: string): number {
+  return displayPressure(barPerC, pUnit) / (tUnit === "F" ? 1.8 : 1);
+}
+
+/** Convert a user-entered kTemp back to bar/°C for storage */
+export function inputKTemp(value: number, pUnit: string, tUnit: string): number {
+  return inputPressure(value, pUnit) * (tUnit === "F" ? 1.8 : 1);
+}
+
 /** Number of decimal places appropriate for a pressure unit */
 export function pressureDecimals(unit: string): number {
   if (unit === "psi") return 1;
