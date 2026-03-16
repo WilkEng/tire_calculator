@@ -135,17 +135,12 @@ export default function SettingsPage() {
         <div className="space-y-3">
           <NumericInput
             label={`k_temp (${settings.unitsPressure}/°C)`}
-            value={settings.kTemp}
-            onChange={(v) => updateSettings({ kTemp: v ?? 0.0105 })}
+            value={displayPressure(settings.kTemp, settings.unitsPressure)}
+            onChange={(v) => updateSettings({ kTemp: v != null ? inputPressure(v, settings.unitsPressure) : 0.0105 })}
           />
           <p className="text-xs text-gray-500">
-            How much cold pressure changes per degree of temperature delta.
+            How much cold pressure changes per °C of temperature delta.
             Higher = more aggressive corrections.
-            {settings.unitsTemperature === "F" && (
-              <span className="block mt-1 text-yellow-400/80">
-                Note: This coefficient is always in {settings.unitsPressure}/°C because the engine works internally in °C.
-              </span>
-            )}
           </p>
         </div>
       </Card>
