@@ -69,14 +69,13 @@ nextCold = referenceCold + feedbackCorrection − conditionCorrection + carryOve
 ### Condition Correction
 
 ```
-effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt × k_track) + (ΔTire × 1.0)
+effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt × k_track) − (ΔTire × 1.0)
 conditionCorrection = effectiveTempDelta × k_temp
 ```
 
-Default coefficients (Classic Wilkinson mode):
-- `k_temp` = 0.012 bar/°C
-- `k_track` = 1.75
-- `k_ambient` = 1.0
+- **k_temp** — global pressure sensitivity (default 0.0105 bar/°C). Configurable in Settings.
+- **k_ambient**, **k_track** — per-compound weighting factors for ambient and asphalt temperature shifts (e.g. medium: k_ambient = 1.00, k_track = 1.75).
+- The tire term is *subtracted* because a warmer starting tire produces less heat rise during the stint.
 
 Every recommendation includes a **plain-language rationale** explaining which reference was used, what the feedback correction was, and how conditions affected the result.
 

@@ -241,8 +241,8 @@ export default function HelpPage() {
         <div className="space-y-3 text-sm text-gray-300">
           <ul className="list-disc list-inside space-y-1 pl-2">
             <li>
-              <strong className="text-gray-100">Units</strong> — choose bar or
-              psi for pressure; °C or °F for temperature.
+              <strong className="text-gray-100">Units</strong> — choose bar,
+              psi, or kPa for pressure; °C or °F for temperature.
             </li>
             <li>
               <strong className="text-gray-100">Default Target Mode</strong> —
@@ -260,19 +260,18 @@ export default function HelpPage() {
               events at the same track.
             </li>
             <li>
-              <strong className="text-gray-100">Classic Mode</strong> — locks
-              the engine to the Wilkinson spreadsheet coefficients (k_temp =
-              0.012, k_track = 1.75, k_ambient = 1.0).
+              <strong className="text-gray-100">Pressure Sensitivity (k_temp)</strong> —
+              a global coefficient controlling how aggressively cold pressure
+              is adjusted per degree of temperature delta. Default is
+              0.0105 bar/°C. Shown in your selected units.
             </li>
             <li>
-              <strong className="text-gray-100">Advanced Coefficients</strong> —
-              when classic mode is off, you can tune k_temp, k_track, and
-              k_ambient.
-            </li>
-            <li>
-              <strong className="text-gray-100">Compound Presets</strong> —
-              built-in and custom compound definitions with temperature
-              sensitivity coefficients.
+              <strong className="text-gray-100">Tire Compounds</strong> —
+              each compound (soft, medium, hard, wet, or custom) has its own
+              <em> k_ambient</em> (ambient temperature weighting),{" "}
+              <em>k_track</em> (asphalt temperature weighting), and{" "}
+              <em>minimum cold pressure</em> warning threshold. These are
+              per-compound, not global.
             </li>
             <li>
               <strong className="text-gray-100">Camber Spread Threshold</strong> —
@@ -319,10 +318,15 @@ export default function HelpPage() {
               adjustment for changing ambient, asphalt, and tire temps:
               <div className="bg-gray-800/50 rounded px-3 py-2 font-mono text-xs mt-1">
                 effectiveTempDelta = (ΔAmbient × k_ambient) + (ΔAsphalt ×
-                k_track) + (ΔTire × 1.0)
+                k_track) − (ΔTire × 1.0)
                 <br />
                 conditionCorrection = effectiveTempDelta × k_temp
               </div>
+              <p className="text-xs text-gray-400 mt-1">
+                k_ambient and k_track come from the active tire compound.
+                The tire term is subtracted because a warmer starting tire
+                produces less heat rise during the stint.
+              </p>
             </li>
             <li>
               <strong className="text-gray-100">carryOverCorrection</strong> —
@@ -339,7 +343,7 @@ export default function HelpPage() {
             <li>Same event, nearest previous pitstop in another stint.</li>
             <li>Prior event at the same track with matching target mode.</li>
             <li>Prior event at the same track (any mode).</li>
-            <li>Classic mode fallback (preset coefficients only).</li>
+            <li>No-reference fallback (target hot as starting cold).</li>
           </ol>
         </div>
       </Card>
