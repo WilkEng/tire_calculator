@@ -69,11 +69,12 @@ export function inputTemp(value: number, unit: string): number {
   return unit === "F" ? fToC(value) : value;
 }
 
-/** Display a pressure value in the selected unit (internal storage is always bar) */
+/** Display a pressure value in the selected unit (internal storage is always bar).
+ *  Automatically rounds to the appropriate number of decimals for the unit. */
 export function displayPressure(bar: number, unit: string): number {
-  if (unit === "psi") return barToPsi(bar);
-  if (unit === "kPa") return barToKPa(bar);
-  return bar;
+  if (unit === "psi") return round(barToPsi(bar), 1);
+  if (unit === "kPa") return round(barToKPa(bar), 0);
+  return round(bar, 2);
 }
 
 /** Convert a user-entered pressure back to bar for storage */
@@ -93,9 +94,12 @@ export function inputTempDelta(delta: number, unit: string): number {
   return unit === "F" ? delta / 1.8 : delta;
 }
 
-/** Display a kTemp value (bar/°C → user-pressure / user-temp) — compound-unit conversion */
+/** Display a kTemp value (bar/°C → user-pressure / user-temp) — compound-unit conversion.
+ *  Automatically rounds to kTempDecimals precision. */
 export function displayKTemp(barPerC: number, pUnit: string, tUnit: string): number {
-  return displayPressure(barPerC, pUnit) / (tUnit === "F" ? 1.8 : 1);
+  const raw = (pUnit === "psi" ? barToPsi(barPerC) : pUnit === "kPa" ? barToKPa(barPerC) : barPerC)
+    / (tUnit === "F" ? 1.8 : 1);
+  return round(raw, kTempDecimals(pUnit));
 }
 
 /** Convert a user-entered kTemp back to bar/°C for storage */
@@ -108,4 +112,12 @@ export function pressureDecimals(unit: string): number {
   if (unit === "psi") return 1;
   if (unit === "kPa") return 0;
   return 2; // bar
+}
+
+/** Number of decimal places appropriate for kTemp (pressure/°) in each unit.
+ *  Target resolution ≈ 0.001 bar/°C equivalent. */
+export function kTempDecimals(pUnit: string): number {
+  if (pUnit === "psi") return 3;
+  if (pUnit === "kPa") return 2;
+  return 4; // bar
 }

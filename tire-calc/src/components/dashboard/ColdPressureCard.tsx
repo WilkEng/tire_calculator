@@ -1,7 +1,7 @@
 "use client";
 
 import type { RecommendationOutput, Corner } from "@/lib/domain/models";
-import { displayPressure, displayKTemp, pressureDecimals } from "@/lib/utils/helpers";
+import { displayPressure, displayKTemp, pressureDecimals, kTempDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -133,7 +133,7 @@ export function ColdPressureCard({
           Ref: {recommendation.referenceSource.replace(/-/g, " ")}
         </span>
         <span>
-          kT={displayKTemp(recommendation.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(4)} kTr=
+          kT={displayKTemp(recommendation.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(kTempDecimals(pressureUnit))} kTr=
           {recommendation.coefficientsUsed.kTrack} kA=
           {recommendation.coefficientsUsed.kAmbient}
         </span>

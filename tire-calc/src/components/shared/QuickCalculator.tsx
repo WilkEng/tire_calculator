@@ -15,7 +15,7 @@ import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
-import { displayPressure, displayTemp, displayKTemp, inputPressure, inputTemp, pressureDecimals } from "@/lib/utils/helpers";
+import { displayPressure, displayTemp, displayKTemp, inputPressure, inputTemp, pressureDecimals, kTempDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -445,7 +445,7 @@ export function QuickCalculator({
                   <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-gray-700/50 text-[11px] text-gray-400">
                     <span>Ref: {result.referenceSource.replace(/-/g, " ")}</span>
                     <span>
-                      kT={displayKTemp(result.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(4)} kTr=
+                      kT={displayKTemp(result.coefficientsUsed.kTemp, pressureUnit, temperatureUnit).toFixed(kTempDecimals(pressureUnit))} kTr=
                       {result.coefficientsUsed.kTrack} kA=
                       {result.coefficientsUsed.kAmbient}
                     </span>
