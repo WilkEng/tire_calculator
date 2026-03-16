@@ -664,26 +664,45 @@ export function computeRecommendation(
     deltas[corner] = round(predicted[corner] - targetCorners[corner], 2);
   }
 
-  const refHotFL = refHotMeasured.FL;
-  const refTargetFL = refTargetHot.FL;
-  if (refHotFL != null && refTargetFL != null) {
-    const diff = round(refHotFL - refTargetFL, 2);
+  // Per-corner feedback summary
+  const highCorners: string[] = [];
+  const lowCorners: string[] = [];
+  const onTargetCorners: string[] = [];
+
+  for (const corner of CORNERS) {
+    const rHotC = refHotMeasured[corner];
+    const rTargetC = refTargetHot[corner];
+    if (rHotC == null || rTargetC == null) continue;
+    const diff = round(rHotC - rTargetC, 2);
     if (diff > 0) {
-      rationaleLines.push(`Car came in ${Math.abs(diff)} bar high (ref target ${refTargetFL}).`);
+      highCorners.push(`${corner} +${diff}`);
     } else if (diff < 0) {
-      rationaleLines.push(`Car came in ${Math.abs(diff)} bar low (ref target ${refTargetFL}).`);
+      lowCorners.push(`${corner} ${diff}`);
     } else {
-      rationaleLines.push(`Car came in on target (${refTargetFL}).`);
+      onTargetCorners.push(corner);
     }
   }
 
-  // Note if target changed between stints
-  const newTargetFL = targetCorners.FL;
-  if (refTargetFL != null && newTargetFL !== refTargetFL) {
-    const tDiff = round(newTargetFL - refTargetFL, 2);
-    rationaleLines.push(
-      `Target changed ${tDiff > 0 ? "+" : ""}${tDiff} bar (${refTargetFL} → ${newTargetFL}).`
-    );
+  if (highCorners.length > 0 || lowCorners.length > 0 || onTargetCorners.length > 0) {
+    const parts: string[] = [];
+    if (highCorners.length > 0) parts.push(`${highCorners.join(", ")} bar high`);
+    if (lowCorners.length > 0) parts.push(`${lowCorners.join(", ")} bar low`);
+    if (onTargetCorners.length > 0) parts.push(`${onTargetCorners.join(", ")} on target`);
+    rationaleLines.push(`Car came in: ${parts.join("; ")}.`);
+  }
+
+  // Note if target changed between stints (per-corner)
+  const targetChangeParts: string[] = [];
+  for (const corner of CORNERS) {
+    const refT = refTargetHot[corner];
+    const newT = targetCorners[corner];
+    if (refT != null && newT !== refT) {
+      const tDiff = round(newT - refT, 2);
+      targetChangeParts.push(`${corner} ${tDiff > 0 ? "+" : ""}${tDiff}`);
+    }
+  }
+  if (targetChangeParts.length > 0) {
+    rationaleLines.push(`Target changed: ${targetChangeParts.join(", ")} bar.`);
   }
 
   const ambDelta = round(nextConditions.ambientTemp - refAmbient, 1);
