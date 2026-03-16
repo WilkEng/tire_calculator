@@ -45,10 +45,13 @@ export default function PlannerPage() {
   } = useEventContext();
 
   // --- Weather forecast for the event's location ---
+  // Use the latest stint's ID so overrides are filtered per-stint
+  const latestStintId = event?.stints?.[event.stints.length - 1]?.id;
   const { currentConditions, getForecastAtTime } = useWeatherForecast(
     event?.latitude,
     event?.longitude,
-    event?.userWeatherOverrides
+    event?.userWeatherOverrides,
+    latestStintId
   );
 
   // --- Modal state ---
@@ -138,12 +141,12 @@ export default function PlannerPage() {
 
   // --- Weather override handler ---
   const handleWeatherOverride = useCallback(
-    (field: "ambient" | "asphalt", value: number, measurementTime?: Date) => {
+    (field: "ambient" | "asphalt", value: number, measurementTime?: Date, stintId?: string) => {
       const timestamp = (measurementTime ?? new Date()).toISOString();
       if (field === "ambient") {
-        addUserWeatherOverride({ timestamp, ambientOverride: value });
+        addUserWeatherOverride({ timestamp, ambientOverride: value, stintId });
       } else {
-        addUserWeatherOverride({ timestamp, asphaltOverride: value });
+        addUserWeatherOverride({ timestamp, asphaltOverride: value, stintId });
       }
     },
     [addUserWeatherOverride]
@@ -446,7 +449,9 @@ export default function PlannerPage() {
                     onPickFromHistory={() =>
                       setBaselinePickerStintId(stint.id)
                     }
-                    onWeatherOverride={handleWeatherOverride}
+                    onWeatherOverride={(field, value, time) =>
+                      handleWeatherOverride(field, value, time, stint.id)
+                    }
                   />
 
                   {/* -- Pitstops -- */}

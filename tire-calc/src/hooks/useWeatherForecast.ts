@@ -60,7 +60,8 @@ let _cache: CachedForecast | null = null;
 export function useWeatherForecast(
   latitude: number | undefined,
   longitude: number | undefined,
-  userOverrides?: UserWeatherOverride[]
+  userOverrides?: UserWeatherOverride[],
+  activeStintId?: string
 ): UseWeatherForecastResult {
   const [forecastPoints, setForecastPoints] = useState<WeatherForecastPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -113,8 +114,8 @@ export function useWeatherForecast(
   }, [doFetch]);
 
   // Build chart data — recalculates when forecast points or overrides change
-  // todayOnly=true so old overrides from a reopened event don't skew today's predictions
-  const chartData = buildChartData(forecastPoints, userOverrides, true);
+  // Filter by active stint so each stint's overrides only shift its own predictions
+  const chartData = buildChartData(forecastPoints, userOverrides, activeStintId);
   const hourlyCards = buildHourlyCards(forecastPoints);
 
   // Current conditions: find nearest forecast point to "now"

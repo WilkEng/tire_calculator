@@ -263,6 +263,7 @@ export interface UserWeatherOverride {
   timestamp: string; // ISO 8601 — when the measurement was taken/entered
   ambientOverride?: number;  // user-measured ambient temp
   asphaltOverride?: number;  // user-measured asphalt temp
+  stintId?: string;          // which stint this override belongs to
 }
 
 // ─── Event ───────────────────────────────────────────────────────

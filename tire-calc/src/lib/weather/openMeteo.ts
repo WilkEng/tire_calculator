@@ -377,22 +377,29 @@ function interpolateOffset(targetEpoch: number, entries: OffsetEntry[]): number 
  * - Multiple overrides create a piecewise-linear offset curve.
  * - If only ambient overrides exist (no asphalt), the ambient correction is
  *   also applied to the asphalt forecast line.
- * - If `todayOnly` is true, overrides from previous days are ignored
+ * - If `filterStintId` is provided, only overrides belonging to that stint
+ *   are used (stint-specific corrections).
+ * - Falls back to a today-only date filter when no stintId is given
  *   (useful when an old event is reopened from history).
  */
 export function buildChartData(
   forecastPoints: WeatherForecastPoint[],
-  userOverrides?: { timestamp: string; ambientOverride?: number; asphaltOverride?: number }[],
-  todayOnly = false
+  userOverrides?: { timestamp: string; ambientOverride?: number; asphaltOverride?: number; stintId?: string }[],
+  filterStintId?: string
 ): ChartDataPoint[] {
   if (forecastPoints.length === 0) return [];
 
-  // Optionally filter to today's overrides only
+  // Filter overrides: by stint if provided, otherwise fall back to today-only
   let overrides = userOverrides ?? [];
-  if (todayOnly && overrides.length > 0) {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    overrides = overrides.filter((o) => new Date(o.timestamp).getTime() >= startOfDay);
+  if (overrides.length > 0) {
+    if (filterStintId) {
+      overrides = overrides.filter((o) => o.stintId === filterStintId);
+    } else {
+      // Fallback: only use today's overrides so old events don't skew
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      overrides = overrides.filter((o) => new Date(o.timestamp).getTime() >= startOfDay);
+    }
   }
 
   // Build per-field offset entries from all overrides

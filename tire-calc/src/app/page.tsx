@@ -24,7 +24,8 @@ export default function DashboardPage() {
   const weatherForecast = useWeatherForecast(
     lat,
     lng,
-    event?.userWeatherOverrides
+    event?.userWeatherOverrides,
+    event?.stints?.[event.stints.length - 1]?.id
   );
 
   // Determine if user has overrides
