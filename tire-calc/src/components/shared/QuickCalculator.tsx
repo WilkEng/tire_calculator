@@ -296,7 +296,7 @@ export function QuickCalculator({
               {getForecastAtTime && (
                 <div className="flex flex-wrap items-center gap-2 p-2.5 bg-gray-800/80 border border-gray-700/50 rounded-lg">
                   <Button variant="secondary" size="sm" onClick={() => handleUsePrediction()}>
-                    🌤 Now
+                    🌤 Use Current Prediction
                   </Button>
                   <span className="text-[11px] text-gray-400">or at:</span>
                   <input
