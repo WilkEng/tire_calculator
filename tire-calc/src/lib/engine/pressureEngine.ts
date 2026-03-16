@@ -33,11 +33,8 @@ import {
   type TargetMode,
   type Targets,
   type RecommendationOutput,
-  type CoefficientsUsed,
   type ReferenceSource,
   type Corner,
-  type CompoundType,
-  type CompoundCoefficients,
   isBuiltInCompound,
   COMPOUND_PRESETS,
 } from "../domain/models";
@@ -475,7 +472,6 @@ export function computeCarryOverBias(
   currentEvent: Event,
   currentTargetMode: TargetMode,
   currentAmbient: number | undefined,
-  coefficients: EngineCoefficients
 ): CarryOverBias {
   const empty: CarryOverBias = {
     biasPerCorner: { FL: 0, FR: 0, RL: 0, RR: 0 },
@@ -615,7 +611,6 @@ export function computeRecommendation(
       currentEvent,
       targetMode,
       nextConditions.ambientTemp,
-      coefficients
     );
   }
 

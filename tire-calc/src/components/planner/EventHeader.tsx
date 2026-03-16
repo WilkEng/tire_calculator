@@ -1,6 +1,5 @@
 "use client";
 
-import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
 import type { Event } from "@/lib/domain/models";
 

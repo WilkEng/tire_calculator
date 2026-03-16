@@ -5,6 +5,7 @@ import { useEventContext } from "@/context/EventContext";
 import { useSessionState } from "@/hooks/useSessionState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { AdBanner } from "@/components/shared/AdBanner";
 
 import { PyroPickerModal } from "@/components/temperature/PyroPickerModal";
 import type { PyroDataSource } from "@/components/temperature/PyroPickerModal";
@@ -24,7 +25,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceLine,
 } from "recharts";
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
@@ -34,7 +34,6 @@ const CORNER_LABELS: Record<Corner, string> = {
   RL: "Rear Left",
   RR: "Rear Right",
 };
-const ZONES = ["inner", "middle", "outer"] as const;
 
 /**
  * Zone ordering per corner — from CENTER of car outward.
@@ -418,7 +417,7 @@ function CornerChart({
 // ═══════════════════════════════════════════════════════════════════
 
 export default function TemperatureAnalysisPage() {
-  const { event, updateEvent, settings } = useEventContext();
+  const { event, settings } = useEventContext();
   const eid = event?.id ?? "__none__";
   const [comparisonLines, setComparisonLines] = useSessionState<ComparisonLine[]>(`temp-lines-${eid}`, []);
   const [showPyroPicker, setShowPyroPicker] = useState(false);
@@ -488,17 +487,17 @@ export default function TemperatureAnalysisPage() {
         color: LINE_PALETTE[idx % LINE_PALETTE.length],
       },
     ]);
-  }, [comparisonLines.length]);
+  }, [comparisonLines.length, setComparisonLines]);
 
   const removeLine = useCallback((lineId: string) => {
     setComparisonLines((prev) => prev.filter((l) => l.id !== lineId));
-  }, []);
+  }, [setComparisonLines]);
 
   const updateLineName = useCallback((lineId: string, name: string) => {
     setComparisonLines((prev) =>
       prev.map((l) => (l.id === lineId ? { ...l, name } : l))
     );
-  }, []);
+  }, [setComparisonLines]);
 
   const toggleSourceInLine = useCallback((lineId: string, sourceId: string) => {
     setComparisonLines((prev) =>
@@ -513,7 +512,7 @@ export default function TemperatureAnalysisPage() {
         };
       })
     );
-  }, []);
+  }, [setComparisonLines]);
 
   /** Quick-add: create one line per source (individual lines) */
   const addIndividualLines = useCallback(() => {
@@ -531,7 +530,7 @@ export default function TemperatureAnalysisPage() {
     if (newLines.length > 0) {
       setComparisonLines((prev) => [...prev, ...newLines]);
     }
-  }, [comparisonLines, dataSources]);
+  }, [comparisonLines, dataSources, setComparisonLines]);
 
   /** Quick-add: create one averaged line from all sources */
   const addAverageLine = useCallback(() => {
@@ -544,11 +543,11 @@ export default function TemperatureAnalysisPage() {
         color: LINE_PALETTE[prev.length % LINE_PALETTE.length],
       },
     ]);
-  }, [dataSources]);
+  }, [dataSources, setComparisonLines]);
 
   const clearLines = useCallback(() => {
     setComparisonLines([]);
-  }, []);
+  }, [setComparisonLines]);
 
   // ── Handle imported pyro sources from picker ──
   const handleImportPyroSources = useCallback((sources: PyroDataSource[]) => {
@@ -570,7 +569,7 @@ export default function TemperatureAnalysisPage() {
     if (newLines.length > 0) {
       setComparisonLines((prev) => [...prev, ...newLines]);
     }
-  }, [comparisonLines.length]);
+  }, [comparisonLines.length, setComparisonLines, setImportedSources]);
 
 
 
@@ -722,6 +721,8 @@ export default function TemperatureAnalysisPage() {
         onSelect={handleImportPyroSources}
         currentEventId={event?.id}
       />
+
+      <AdBanner />
     </div>
   );
 }

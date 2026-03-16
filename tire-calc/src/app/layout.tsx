@@ -21,6 +21,12 @@ export const metadata: Metadata = {
     icon: "/tire_calculator/icon-512.png",
     apple: "/tire_calculator/icon-512.png",
   },
+  manifest: "/tire_calculator/manifest.json",
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
 };
 
 export default function RootLayout({
@@ -30,10 +36,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <meta name="theme-color" content="#00d4aa" />
+        <meta name="apple-mobile-web-app-title" content="Tire Calc" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-gray-100 min-h-screen`}
       >
         <AppShell>{children}</AppShell>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/tire_calculator/sw.js');
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

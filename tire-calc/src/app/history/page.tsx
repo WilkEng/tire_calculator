@@ -13,6 +13,7 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SearchFilterBar, useEventFilter } from "@/components/ui/SearchFilterBar";
+import { AdBanner } from "@/components/shared/AdBanner";
 import Link from "next/link";
 import type { Event } from "@/lib/domain/models";
 
@@ -443,6 +444,8 @@ export default function HistoryPage() {
 
       {/* Toast */}
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+
+      <AdBanner />
     </div>
   );
 }

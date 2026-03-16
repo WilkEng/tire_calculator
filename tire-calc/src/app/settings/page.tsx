@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { AdBanner } from "@/components/shared/AdBanner";
 import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/models";
 import { COMPOUND_PRESETS, BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import type { CustomCompound } from "@/lib/domain/models";
@@ -339,6 +340,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      <AdBanner />
     </div>
   );
 }

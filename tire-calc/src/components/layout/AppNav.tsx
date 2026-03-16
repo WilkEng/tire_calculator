@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/temperature", label: "Temps", icon: "🌡" },
   { href: "/history", label: "History", icon: "▤" },
   { href: "/settings", label: "Settings", icon: "⚙" },
+  { href: "/help", label: "Help", icon: "?" },
 ];
 
 export function AppNav() {

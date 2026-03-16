@@ -6,7 +6,7 @@
 // ────────────────────────────────────────────────────────────────────
 
 import type { WeatherSnapshot } from "../domain/models";
-import { generateId, nowISO } from "../utils/helpers";
+import { generateId } from "../utils/helpers";
 
 // ─── Open-Meteo API types ──────────────────────────────────────────
 

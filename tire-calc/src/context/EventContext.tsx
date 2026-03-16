@@ -21,7 +21,6 @@ import { DEFAULT_APP_SETTINGS } from "@/lib/domain/models";
 import {
   createEvent,
   createStint,
-  createStintBaseline,
   createPitstopEntry,
   createUserWeatherOverride,
 } from "@/lib/domain/factories";
@@ -404,7 +403,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         if (!prev) return prev;
         // Strip weather conditions from imported baseline so they don't
         // override the current event's ambient/asphalt predictions.
-        const { ambientMeasured, asphaltMeasured, ...importedBaseline } = baseline;
+        const importedBaseline = { ...baseline };
+        delete importedBaseline.ambientMeasured;
+        delete importedBaseline.asphaltMeasured;
         const stints = prev.stints.map((s) =>
           s.id === stintId
             ? {

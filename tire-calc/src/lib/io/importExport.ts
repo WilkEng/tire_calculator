@@ -318,7 +318,6 @@ export interface StintBaselineImportResult extends ImportResult {
  * Validates the "stint-baseline" export format.
  */
 export function importStintBaseline(json: string): StintBaselineImportResult {
-  const errors: string[] = [];
   const warnings: string[] = [];
 
   let data: unknown;

@@ -1,33 +1,27 @@
 "use client";
 
-import { useMemo, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useEventContext } from "@/context/EventContext";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { PitstopCard } from "@/components/planner/PitstopCard";
 import { QuickCalculator } from "@/components/shared/QuickCalculator";
 import { EventHeader } from "@/components/planner/EventHeader";
-import { EventStartCard } from "@/components/planner/EventStartCard";
 import { NewEventModal } from "@/components/planner/NewEventModal";
 import type { NewEventData } from "@/components/planner/NewEventModal";
 import { StintStartFlow } from "@/components/planner/StintStartFlow";
 import { BaselinePickerModal } from "@/components/planner/BaselinePickerModal";
+import { AdBanner } from "@/components/shared/AdBanner";
 import {
   computeRecommendation,
-  selectReference,
-  expandTargets,
   type RecommendationInput,
 } from "@/lib/engine";
 import type {
   RecommendationOutput,
   Stint,
   StintBaseline,
-  Corner,
 } from "@/lib/domain/models";
 import { downloadJSON, importStintBaseline } from "@/lib/io/importExport";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
-
-const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
 
 export default function PlannerPage() {
   const {
@@ -545,6 +539,8 @@ export default function PlannerPage() {
         onSelect={handlePickBaseline}
         pressureUnit={settings.unitsPressure}
       />
+
+      <AdBanner />
     </div>
   );
 }

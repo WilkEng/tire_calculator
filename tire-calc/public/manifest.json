@@ -1,0 +1,19 @@
+{
+  "name": "Tire Calc – Race Pressure Planner",
+  "short_name": "Tire Calc",
+  "description": "Local-first race engineering app for tire pressure calculation and event management.",
+  "start_url": "/tire_calculator/",
+  "scope": "/tire_calculator/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#030712",
+  "theme_color": "#00d4aa",
+  "icons": [
+    {
+      "src": "/tire_calculator/icon-512.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
