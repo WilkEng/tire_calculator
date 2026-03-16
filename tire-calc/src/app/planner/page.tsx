@@ -11,6 +11,7 @@ import type { NewEventData } from "@/components/planner/NewEventModal";
 import { StintStartFlow } from "@/components/planner/StintStartFlow";
 import { BaselinePickerModal } from "@/components/planner/BaselinePickerModal";
 import { AdBanner } from "@/components/shared/AdBanner";
+import Link from "next/link";
 import {
   computeRecommendation,
   type RecommendationInput,
@@ -310,9 +311,14 @@ export default function PlannerPage() {
           Start a new event to begin logging pitstop data and calculating tire
           pressures.
         </p>
-        <Button size="lg" onClick={() => setShowNewEventModal(true)}>
-          + New Event
-        </Button>
+        <div className="flex gap-3">
+          <Button size="lg" onClick={() => setShowNewEventModal(true)}>
+            + New Event
+          </Button>
+          <Link href="/history">
+            <Button variant="secondary" size="lg">Load from History</Button>
+          </Link>
+        </div>
 
         <NewEventModal
           open={showNewEventModal}

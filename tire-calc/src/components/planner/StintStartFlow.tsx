@@ -12,6 +12,7 @@ import type {
   AppSettings,
 } from "@/lib/domain/models";
 import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
+import { resolveMinColdPressure } from "@/lib/engine";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -314,28 +315,49 @@ export function StintStartFlow({
           /* ──── Manual Tab ──── */
           <div className="space-y-5">
             {/* Recommended cold pressures banner */}
-            {recommendedColdPressures && (
-              <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-teal-300">
-                    Recommended Cold Pressures (from previous stint)
-                  </span>
-                  <Button variant="secondary" size="sm" onClick={handleApplyRecommended}>
-                    Apply
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {CORNERS.map((c) => (
-                    <div key={c} className="text-center">
-                      <div className="text-xs text-gray-400">{c}</div>
-                      <div className="text-sm font-bold text-teal-400 tabular-nums">
-                        {recommendedColdPressures[c]?.toFixed(2) ?? "—"}
-                      </div>
+            {recommendedColdPressures && (() => {
+              const minCold = resolveMinColdPressure(baseline.compound, settings);
+              const anyBelowMin = CORNERS.some((c) => {
+                const v = recommendedColdPressures[c];
+                return v != null && v < minCold;
+              });
+              return (
+                <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-teal-300">
+                      Recommended Cold Pressures (from previous stint)
+                    </span>
+                    <Button variant="secondary" size="sm" onClick={handleApplyRecommended}>
+                      Apply
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {CORNERS.map((c) => {
+                      const v = recommendedColdPressures[c];
+                      const isBelowMin = v != null && v < minCold;
+                      return (
+                        <div key={c} className="text-center">
+                          <div className="text-xs text-gray-400">{c}</div>
+                          <div className={`text-sm font-bold tabular-nums ${isBelowMin ? "text-red-400" : "text-teal-400"}`}>
+                            {v?.toFixed(2) ?? "—"}
+                          </div>
+                          {isBelowMin && (
+                            <div className="text-[10px] text-red-400 font-medium mt-0.5">
+                              ⚠ Below {minCold.toFixed(1)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {anyBelowMin && (
+                    <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 mt-2 text-xs text-red-300 text-center font-medium">
+                      ⚠ One or more cold pressures are below {minCold.toFixed(1)} bar — verify settings
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Compound selector */}
             <div>
