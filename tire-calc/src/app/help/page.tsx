@@ -276,8 +276,9 @@ export default function HelpPage() {
             </li>
             <li>
               <strong className="text-gray-100">Camber Spread Threshold</strong> —
-              the inner-vs-outer temperature delta (°{settings.unitsTemperature}) before a warning
-              appears on the temperature page.
+              the expected inner − outer temperature delta for your current
+              camber. Deviations beyond ±6 °{settings.unitsTemperature} from this value
+              trigger warnings on the temperature page.
             </li>
           </ul>
         </div>

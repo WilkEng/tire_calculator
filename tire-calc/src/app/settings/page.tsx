@@ -316,8 +316,8 @@ export default function SettingsPage() {
               }
             />
             <p className="text-xs text-gray-500 mt-1">
-              Temperature spread (inner − outer) beyond this threshold indicates too much or too little camber.
-              Values within ⅓ of this threshold are &quot;perfect&quot;, within ⅔ are &quot;slight&quot;, beyond are warnings.
+              The expected inner − outer temperature delta for your current camber.
+              Deviation within ±3°C of this value is &quot;perfect&quot;, within ±6°C is &quot;slight&quot;, beyond ±6°C triggers a warning.
             </p>
           </div>
         </div>
