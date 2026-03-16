@@ -10,7 +10,7 @@ import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/mod
 import { COMPOUND_PRESETS, BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import type { CustomCompound } from "@/lib/domain/models";
 import { generateId } from "@/lib/utils/helpers";
-import { displayTemp, inputTemp, displayPressure, inputPressure, pressureDecimals } from "@/lib/utils/helpers";
+import { displayTemp, inputTemp, displayPressure, inputPressure, pressureDecimals, displayTempDelta, inputTempDelta } from "@/lib/utils/helpers";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useEventContext();
@@ -134,13 +134,18 @@ export default function SettingsPage() {
       <Card title="Pressure Sensitivity">
         <div className="space-y-3">
           <NumericInput
-            label="k_temp (bar/°C)"
+            label={`k_temp (${settings.unitsPressure}/°C)`}
             value={settings.kTemp}
             onChange={(v) => updateSettings({ kTemp: v ?? 0.0105 })}
           />
           <p className="text-xs text-gray-500">
             How much cold pressure changes per degree of temperature delta.
             Higher = more aggressive corrections.
+            {settings.unitsTemperature === "F" && (
+              <span className="block mt-1 text-yellow-400/80">
+                Note: This coefficient is always in {settings.unitsPressure}/°C because the engine works internally in °C.
+              </span>
+            )}
           </p>
         </div>
       </Card>
@@ -310,10 +315,10 @@ export default function SettingsPage() {
           {/* Camber spread threshold */}
           <div className="pt-3 border-t border-gray-700/40">
             <NumericInput
-              label="Camber Spread Threshold (°C)"
-              value={settings.camberSpreadThreshold ?? 12}
+              label={`Camber Spread Threshold (°${settings.unitsTemperature})`}
+              value={displayTempDelta(settings.camberSpreadThreshold ?? 12, settings.unitsTemperature)}
               onChange={(v) =>
-                updateSettings({ camberSpreadThreshold: v ?? 12 })
+                updateSettings({ camberSpreadThreshold: v != null ? inputTempDelta(v, settings.unitsTemperature) : 12 })
               }
             />
             <p className="text-xs text-gray-500 mt-1">

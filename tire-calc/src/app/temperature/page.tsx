@@ -14,7 +14,7 @@ import type {
   Corner,
   FourCornerTemperatureReadings,
 } from "@/lib/domain/models";
-import { round } from "@/lib/utils/helpers";
+import { round, displayTemp, displayTempDelta } from "@/lib/utils/helpers";
 import { generateId } from "@/lib/utils/helpers";
 import {
   LineChart,
@@ -294,31 +294,38 @@ function CornerChart({
       for (const rl of resolvedLines) {
         const r = rl.readings[corner];
         if (r) {
-          point[rl.name] = r[zone];
+          point[rl.name] = round(displayTemp(r[zone], unit), 1);
         }
       }
       return point;
     });
 
     return { chartData: data, lineKeys: keys };
-  }, [resolvedLines, corner, zoneOrder]);
+  }, [resolvedLines, corner, zoneOrder, unit]);
 
   // Compute metrics/warnings PER LINE
+  // Readings are stored in °C; assessCamber/assessPressure thresholds are in °C.
+  // Convert to display unit ONLY for the numbers shown to the user.
   const lineMetrics = useMemo(() => {
     return resolvedLines.map((rl) => {
       const reading = rl.readings[corner];
       if (!reading) return null;
-      const avg = round((reading.inner + reading.middle + reading.outer) / 3, 1);
-      const camberDelta = round(reading.inner - reading.outer, 1);
-      const camberWarning = assessCamber(camberDelta, spreadThreshold);
-      const pressureDelta = round(reading.middle - (reading.inner + reading.outer) / 2, 1);
-      const pressureWarning = assessPressure(pressureDelta);
+      // Compute in °C for correct threshold evaluation
+      const avgC = round((reading.inner + reading.middle + reading.outer) / 3, 1);
+      const camberDeltaC = round(reading.inner - reading.outer, 1);
+      const camberWarning = assessCamber(camberDeltaC, spreadThreshold);
+      const pressureDeltaC = round(reading.middle - (reading.inner + reading.outer) / 2, 1);
+      const pressureWarning = assessPressure(pressureDeltaC);
+      // Convert for display
+      const avg = round(displayTemp(avgC, unit), 1);
+      const camberDelta = round(displayTempDelta(camberDeltaC, unit), 1);
+      const pressureDelta = round(displayTempDelta(pressureDeltaC, unit), 1);
       return { lineName: rl.name, color: rl.color, avg, camberDelta, pressureDelta, camberWarning, pressureWarning };
     }).filter(Boolean) as {
       lineName: string; color: string; avg: number; camberDelta: number; pressureDelta: number;
       camberWarning: WarningLevel; pressureWarning: PressureWarning;
     }[];
-  }, [resolvedLines, corner, spreadThreshold]);
+  }, [resolvedLines, corner, spreadThreshold, unit]);
 
   if (lineKeys.length === 0) {
     return (

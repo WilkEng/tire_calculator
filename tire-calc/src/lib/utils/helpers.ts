@@ -83,6 +83,16 @@ export function inputPressure(value: number, unit: string): number {
   return value;
 }
 
+/** Display a temperature DELTA in the selected unit (Δ°F = Δ°C × 1.8) */
+export function displayTempDelta(deltaC: number, unit: string): number {
+  return unit === "F" ? deltaC * 1.8 : deltaC;
+}
+
+/** Convert a user-entered temperature DELTA back to °C for storage */
+export function inputTempDelta(delta: number, unit: string): number {
+  return unit === "F" ? delta / 1.8 : delta;
+}
+
 /** Number of decimal places appropriate for a pressure unit */
 export function pressureDecimals(unit: string): number {
   if (unit === "psi") return 1;

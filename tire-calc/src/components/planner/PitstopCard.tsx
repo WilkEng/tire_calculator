@@ -5,7 +5,7 @@ import type { PitstopEntry, Corner, CornerTemperatureReading } from "@/lib/domai
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { displayPressure, inputPressure, pressureDecimals } from "@/lib/utils/helpers";
+import { displayPressure, inputPressure, pressureDecimals, displayTemp, inputTemp } from "@/lib/utils/helpers";
 
 interface PitstopCardProps {
   pitstop: PitstopEntry;
@@ -30,6 +30,7 @@ export function PitstopCard({
   onRemove,
   isLatest,
   pressureUnit,
+  temperatureUnit,
 }: PitstopCardProps) {
   const [collapsed, setCollapsed] = useState(!isLatest);
   const [tempsOpen, setTempsOpen] = useState(false);
@@ -53,7 +54,7 @@ export function PitstopCard({
     onUpdate({
       temperatureReadings: {
         ...prev,
-        [corner]: { ...prevCorner, [field]: value },
+        [corner]: { ...prevCorner, [field]: value != null ? inputTemp(value, temperatureUnit) : value },
       },
     });
   };
@@ -161,20 +162,20 @@ export function PitstopCard({
                       <div className="grid grid-cols-3 gap-2">
                         <NumericInput
                           label="Inner"
-                          unit="°"
-                          value={reading?.inner}
+                          unit={`°${temperatureUnit}`}
+                          value={reading?.inner != null ? displayTemp(reading.inner, temperatureUnit) : undefined}
                           onChange={(v) => handleTempChange(corner, "inner", v)}
                         />
                         <NumericInput
                           label="Middle"
-                          unit="°"
-                          value={reading?.middle}
+                          unit={`°${temperatureUnit}`}
+                          value={reading?.middle != null ? displayTemp(reading.middle, temperatureUnit) : undefined}
                           onChange={(v) => handleTempChange(corner, "middle", v)}
                         />
                         <NumericInput
                           label="Outer"
-                          unit="°"
-                          value={reading?.outer}
+                          unit={`°${temperatureUnit}`}
+                          value={reading?.outer != null ? displayTemp(reading.outer, temperatureUnit) : undefined}
                           onChange={(v) => handleTempChange(corner, "outer", v)}
                         />
                       </div>

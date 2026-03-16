@@ -15,6 +15,8 @@
 //   effectiveTempDelta  = (ambientNext - ambientRef) * kAmbient
 //                       + (asphaltNext - asphaltRef) * kTrack
 //                       - (startTireNext - startTireRef) * 1.0
+
+import { displayTempDelta, displayPressure } from "@/lib/utils/helpers";
 //
 // Note: tire temp term is SUBTRACTED because warmer tires = less heat
 // rise during the stint = need MORE cold pressure (opposite of ambient/asphalt).
@@ -665,17 +667,23 @@ export function computeRecommendation(
   // Note bleed adjustment in rationale when effective cold differs from baseline
   const baselineCold = getColdForStint(refStint) ?? {};
   const bledAdjParts: string[] = [];
+  const pUnit = settings.unitsPressure ?? "bar";
+  const tUnit = settings.unitsTemperature ?? "C";
+  const pDec = pUnit === "psi" ? 1 : pUnit === "kPa" ? 0 : 2;
   for (const corner of CORNERS) {
     const base = baselineCold[corner];
     const eff = refCold[corner];
     if (base != null && eff != null) {
       const adj = round(eff - base, 2);
-      if (adj !== 0) bledAdjParts.push(`${corner} ${adj > 0 ? "+" : ""}${adj}`);
+      if (adj !== 0) {
+        const adjDisplay = round(displayPressure(adj, pUnit), pDec);
+        bledAdjParts.push(`${corner} ${adjDisplay > 0 ? "+" : ""}${adjDisplay}`);
+      }
     }
   }
   if (bledAdjParts.length > 0) {
     rationaleLines.push(
-      `Effective cold adjusted for prior bleeds: ${bledAdjParts.join(", ")} bar.`
+      `Effective cold adjusted for prior bleeds: ${bledAdjParts.join(", ")} ${pUnit}.`
     );
   }
 
@@ -729,7 +737,7 @@ export function computeRecommendation(
     const rHotC = refHotMeasured[corner];
     const rTargetC = refTargetHot[corner];
     if (rHotC == null || rTargetC == null) continue;
-    const diff = round(rHotC - rTargetC, 2);
+    const diff = round(displayPressure(rHotC - rTargetC, pUnit), pDec);
     if (diff > 0) {
       highCorners.push(`${corner} +${diff}`);
     } else if (diff < 0) {
@@ -741,8 +749,8 @@ export function computeRecommendation(
 
   if (highCorners.length > 0 || lowCorners.length > 0 || onTargetCorners.length > 0) {
     const parts: string[] = [];
-    if (highCorners.length > 0) parts.push(`${highCorners.join(", ")} bar high`);
-    if (lowCorners.length > 0) parts.push(`${lowCorners.join(", ")} bar low`);
+    if (highCorners.length > 0) parts.push(`${highCorners.join(", ")} ${pUnit} high`);
+    if (lowCorners.length > 0) parts.push(`${lowCorners.join(", ")} ${pUnit} low`);
     if (onTargetCorners.length > 0) parts.push(`${onTargetCorners.join(", ")} on target`);
     rationaleLines.push(`Car came in: ${parts.join("; ")}.`);
   }
@@ -753,22 +761,24 @@ export function computeRecommendation(
     const refT = refTargetHot[corner];
     const newT = targetCorners[corner];
     if (refT != null && newT !== refT) {
-      const tDiff = round(newT - refT, 2);
+      const tDiff = round(displayPressure(newT - refT, pUnit), pDec);
       targetChangeParts.push(`${corner} ${tDiff > 0 ? "+" : ""}${tDiff}`);
     }
   }
   if (targetChangeParts.length > 0) {
-    rationaleLines.push(`Target changed: ${targetChangeParts.join(", ")} bar.`);
+    rationaleLines.push(`Target changed: ${targetChangeParts.join(", ")} ${pUnit}.`);
   }
 
-  const ambDelta = round(nextConditions.ambientTemp - refAmbient, 1);
-  const aspDelta = round(nextConditions.asphaltTemp - refAsphalt, 1);
-  if (ambDelta !== 0 || aspDelta !== 0) {
+  const ambDeltaC = round(nextConditions.ambientTemp - refAmbient, 1);
+  const aspDeltaC = round(nextConditions.asphaltTemp - refAsphalt, 1);
+  if (ambDeltaC !== 0 || aspDeltaC !== 0) {
+    const ambDelta = round(displayTempDelta(ambDeltaC, tUnit), 1);
+    const aspDelta = round(displayTempDelta(aspDeltaC, tUnit), 1);
     const parts: string[] = [];
-    if (ambDelta !== 0) parts.push(`${ambDelta > 0 ? "+" : ""}${ambDelta} °C ambient`);
-    if (aspDelta !== 0) parts.push(`${aspDelta > 0 ? "+" : ""}${aspDelta} °C asphalt`);
+    if (ambDelta !== 0) parts.push(`${ambDelta > 0 ? "+" : ""}${ambDelta} °${tUnit} ambient`);
+    if (aspDelta !== 0) parts.push(`${aspDelta > 0 ? "+" : ""}${aspDelta} °${tUnit} asphalt`);
     rationaleLines.push(
-      `Next stint forecast is ${ambDelta >= 0 && aspDelta >= 0 ? "warmer" : ambDelta <= 0 && aspDelta <= 0 ? "cooler" : "mixed"} by ${parts.join(" and ")}.`
+      `Next stint forecast is ${ambDeltaC >= 0 && aspDeltaC >= 0 ? "warmer" : ambDeltaC <= 0 && aspDeltaC <= 0 ? "cooler" : "mixed"} by ${parts.join(" and ")}.`
     );
   }
 
