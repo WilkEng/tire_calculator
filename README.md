@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon-512.png" alt="Tire Calc" width="120" />
+  <img src="tire-calc/public/icon-512.png" alt="Tire Calc" width="120" />
 </p>
 
 <h1 align="center">Tire Calc</h1>
