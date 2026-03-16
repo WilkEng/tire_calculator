@@ -32,7 +32,7 @@ export function NumericInput({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value;
+      const raw = e.target.value.replace(",", ".");
       setLocalText(raw);
 
       if (raw === "" || raw === "-") {
