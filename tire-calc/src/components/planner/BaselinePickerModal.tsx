@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { SearchFilterBar, useEventFilter } from "@/components/ui/SearchFilterBar";
 import { getAllEvents } from "@/lib/persistence/db";
 import type { Event, Stint, StintBaseline, PitstopEntry, Corner } from "@/lib/domain/models";
+import { displayTemp, displayPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ interface BaselinePickerModalProps {
   onClose: () => void;
   onSelect: (baseline: StintBaseline, eventName: string, stintName: string, pitstops?: PitstopEntry[]) => void;
   pressureUnit: string;
+  temperatureUnit: string;
 }
 
 const CORNERS: Corner[] = ["FL", "FR", "RL", "RR"];
@@ -24,6 +26,7 @@ export function BaselinePickerModal({
   onClose,
   onSelect,
   pressureUnit,
+  temperatureUnit,
 }: BaselinePickerModalProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
@@ -199,12 +202,12 @@ export function BaselinePickerModal({
                                       </span>
                                       {stint.baseline.ambientMeasured != null && (
                                         <span>
-                                          Amb: {stint.baseline.ambientMeasured}°
+                                          Amb: {displayTemp(stint.baseline.ambientMeasured, temperatureUnit).toFixed(1)}°
                                         </span>
                                       )}
                                       {stint.baseline.asphaltMeasured != null && (
                                         <span>
-                                          Asp: {stint.baseline.asphaltMeasured}°
+                                          Asp: {displayTemp(stint.baseline.asphaltMeasured, temperatureUnit).toFixed(1)}°
                                         </span>
                                       )}
                                     </div>
@@ -215,8 +218,9 @@ export function BaselinePickerModal({
                                           {CORNERS.map((c) => (
                                             <span key={c} className="tabular-nums">
                                               {c}:{" "}
-                                              {stint.baseline.coldPressures?.[c]?.toFixed(2) ??
-                                                "—"}
+                                              {stint.baseline.coldPressures?.[c] != null
+                                                ? displayPressure(stint.baseline.coldPressures[c]!, pressureUnit).toFixed(pressureDecimals(pressureUnit))
+                                                : "—"}
                                             </span>
                                           ))}
                                           <span className="text-gray-600">

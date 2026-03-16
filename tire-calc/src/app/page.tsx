@@ -11,6 +11,7 @@ import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import Link from "next/link";
 import { useMemo } from "react";
+import { displayTemp } from "@/lib/utils/helpers";
 
 export default function DashboardPage() {
   const { event, settings } = useEventContext();
@@ -152,14 +153,14 @@ export default function DashboardPage() {
                       <div>
                         <div className="text-xs text-gray-400 mb-0.5">Ambient</div>
                         <div className="text-xl font-bold text-gray-300 tabular-nums">
-                          {weatherForecast.currentConditions.ambient.toFixed(1)}
+                          {displayTemp(weatherForecast.currentConditions.ambient, settings.unitsTemperature).toFixed(1)}
                           <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                         </div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-400 mb-0.5">Asphalt</div>
                         <div className="text-xl font-bold text-gray-300 tabular-nums">
-                          {weatherForecast.currentConditions.asphalt.toFixed(1)}
+                          {displayTemp(weatherForecast.currentConditions.asphalt, settings.unitsTemperature).toFixed(1)}
                           <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                         </div>
                       </div>
@@ -176,16 +177,20 @@ export default function DashboardPage() {
                         <div>
                           <div className="text-xs text-gray-400 mb-0.5">Ambient</div>
                           <div className="text-2xl font-bold text-teal-400 tabular-nums">
-                            {latestAmbientMeasured?.toFixed(1) ??
-                              weatherForecast.currentConditions.ambient.toFixed(1)}
+                            {(latestAmbientMeasured != null
+                              ? displayTemp(latestAmbientMeasured, settings.unitsTemperature)
+                              : displayTemp(weatherForecast.currentConditions.ambient, settings.unitsTemperature)
+                            ).toFixed(1)}
                             <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-400 mb-0.5">Asphalt</div>
                           <div className="text-2xl font-bold text-teal-400 tabular-nums">
-                            {latestAsphaltMeasured?.toFixed(1) ??
-                              weatherForecast.currentConditions.asphalt.toFixed(1)}
+                            {(latestAsphaltMeasured != null
+                              ? displayTemp(latestAsphaltMeasured, settings.unitsTemperature)
+                              : displayTemp(weatherForecast.currentConditions.asphalt, settings.unitsTemperature)
+                            ).toFixed(1)}
                             <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                           </div>
                         </div>
@@ -205,14 +210,18 @@ export default function DashboardPage() {
                   <div>
                     <div className="text-xs text-gray-400 mb-1">Ambient</div>
                     <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                      {latestStint?.baseline?.ambientMeasured?.toFixed(1) ?? "\u2014"}
+                      {latestStint?.baseline?.ambientMeasured != null
+                        ? displayTemp(latestStint.baseline.ambientMeasured, settings.unitsTemperature).toFixed(1)
+                        : "\u2014"}
                       <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400 mb-1">Asphalt</div>
                     <div className="text-2xl font-bold text-gray-200 tabular-nums">
-                      {latestStint?.baseline?.asphaltMeasured?.toFixed(1) ?? "\u2014"}
+                      {latestStint?.baseline?.asphaltMeasured != null
+                        ? displayTemp(latestStint.baseline.asphaltMeasured, settings.unitsTemperature).toFixed(1)
+                        : "\u2014"}
                       <span className="text-sm text-gray-500 ml-1">{"\u00B0"}{settings.unitsTemperature}</span>
                     </div>
                   </div>

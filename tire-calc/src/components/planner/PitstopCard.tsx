@@ -5,6 +5,7 @@ import type { PitstopEntry, Corner, CornerTemperatureReading } from "@/lib/domai
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { displayPressure, inputPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 interface PitstopCardProps {
   pitstop: PitstopEntry;
@@ -78,7 +79,7 @@ export function PitstopCard({
     >
       {collapsed ? (
         <div className="text-sm text-gray-400">
-          {pitstop.hotMeasuredPressures?.FL != null ? `Hot FL: ${pitstop.hotMeasuredPressures.FL} ${pressureUnit}` : "No data"}
+          {pitstop.hotMeasuredPressures?.FL != null ? `Hot FL: ${displayPressure(pitstop.hotMeasuredPressures.FL, pressureUnit).toFixed(pressureDecimals(pressureUnit))} ${pressureUnit}` : "No data"}
         </div>
       ) : (
         <div className="space-y-6">
@@ -92,8 +93,8 @@ export function PitstopCard({
                   key={c}
                   label={c}
                   unit={pressureUnit}
-                  value={pitstop.hotMeasuredPressures?.[c]}
-                  onChange={(val) => onHotPressureChange(c, val)}
+                  value={pitstop.hotMeasuredPressures?.[c] != null ? displayPressure(pitstop.hotMeasuredPressures[c]!, pressureUnit) : undefined}
+                  onChange={(val) => onHotPressureChange(c, val != null ? inputPressure(val, pressureUnit) : undefined)}
                 />
               ))}
             </div>
@@ -120,8 +121,8 @@ export function PitstopCard({
                         </span>
                       }
                       unit={pressureUnit}
-                      value={getBledDisplayValue(c)}
-                      onChange={(val) => onBledPressureChange(c, val)}
+                      value={getBledDisplayValue(c) != null ? displayPressure(getBledDisplayValue(c)!, pressureUnit) : undefined}
+                      onChange={(val) => onBledPressureChange(c, val != null ? inputPressure(val, pressureUnit) : undefined)}
                     />
                     {isLocked && (
                       <button

@@ -1,6 +1,7 @@
 "use client";
 
 import type { RecommendationOutput, Corner } from "@/lib/domain/models";
+import { displayPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ export function ColdPressureCard({
           const cold = recommendation.recommendedColdPressures[c];
           const delta = recommendation.deltasToTarget[c];
           const isBelowMin = cold < minColdPressureBar;
+          const pd = pressureDecimals(pressureUnit);
 
           return (
             <div key={c} className="text-center">
@@ -76,14 +78,14 @@ export function ColdPressureCard({
               <div className={`text-2xl font-bold tabular-nums leading-tight ${
                 isBelowMin ? "text-red-400" : "text-teal-400"
               }`}>
-                {cold.toFixed(2)}
+                {displayPressure(cold, pressureUnit).toFixed(pd)}
               </div>
               <div className="text-[10px] text-gray-500 mt-0.5">
                 {pressureUnit}
               </div>
               {isBelowMin && (
                 <div className="text-[10px] text-red-400 font-medium mt-0.5">
-                  ⚠ Below {minColdPressureBar.toFixed(1)}
+                  ⚠ Below {displayPressure(minColdPressureBar, pressureUnit).toFixed(pd)}
                 </div>
               )}
               {/* Delta indicator */}
@@ -97,7 +99,7 @@ export function ColdPressureCard({
                 }`}
               >
                 {delta >= 0 ? "+" : ""}
-                {delta.toFixed(2)}
+                {displayPressure(delta, pressureUnit).toFixed(pd)}
               </div>
             </div>
           );
@@ -107,7 +109,7 @@ export function ColdPressureCard({
       {/* Low pressure warning banner */}
       {CORNERS.some((c) => recommendation.recommendedColdPressures[c] < minColdPressureBar) && (
         <div className="bg-red-900/30 border border-red-700/50 rounded p-2 mb-3 text-xs text-red-300 text-center font-medium">
-          ⚠ One or more cold pressures are below {minColdPressureBar.toFixed(1)} bar — verify settings
+          ⚠ One or more cold pressures are below {displayPressure(minColdPressureBar, pressureUnit).toFixed(pressureDecimals(pressureUnit))} {pressureUnit} — verify settings
         </div>
       )}
 

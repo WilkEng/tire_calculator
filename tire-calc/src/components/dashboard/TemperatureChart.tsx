@@ -13,6 +13,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { ChartDataPoint } from "@/lib/weather/openMeteo";
+import { displayTemp } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -73,12 +74,23 @@ export function TemperatureChart({
 }: TemperatureChartProps) {
   const currentHour = getCurrentHourLabel();
 
-  // Determine Y-axis domain from data
+  // Convert chart data from internal °C to display unit
+  const convertedData = useMemo(() => {
+    return data.map((d) => ({
+      ...d,
+      apiAmbient: d.apiAmbient != null ? displayTemp(d.apiAmbient, temperatureUnit) : d.apiAmbient,
+      apiAsphalt: d.apiAsphalt != null ? displayTemp(d.apiAsphalt, temperatureUnit) : d.apiAsphalt,
+      userAmbient: d.userAmbient != null ? displayTemp(d.userAmbient, temperatureUnit) : d.userAmbient,
+      userAsphalt: d.userAsphalt != null ? displayTemp(d.userAsphalt, temperatureUnit) : d.userAsphalt,
+    }));
+  }, [data, temperatureUnit]);
+
+  // Determine Y-axis domain from converted data
   const [yMin, yMax] = useMemo(() => {
-    if (data.length === 0) return [0, 40];
+    if (convertedData.length === 0) return [0, 40];
     let min = Infinity;
     let max = -Infinity;
-    for (const d of data) {
+    for (const d of convertedData) {
       const vals = [
         d.apiAmbient,
         d.apiAsphalt,
@@ -92,9 +104,9 @@ export function TemperatureChart({
     }
     // Add padding
     return [Math.floor(min - 2), Math.ceil(max + 2)];
-  }, [data]);
+  }, [convertedData]);
 
-  if (data.length === 0) {
+  if (convertedData.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
         No weather data available. Set a location to enable weather forecasts.
@@ -105,7 +117,7 @@ export function TemperatureChart({
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart
-        data={data}
+        data={convertedData}
         margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

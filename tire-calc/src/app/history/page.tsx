@@ -16,15 +16,18 @@ import { SearchFilterBar, useEventFilter } from "@/components/ui/SearchFilterBar
 import { AdBanner } from "@/components/shared/AdBanner";
 import Link from "next/link";
 import type { Event } from "@/lib/domain/models";
+import { displayPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Preview Modal ─────────────────────────────────────────────────
 
 function PreviewModal({
   event,
   onClose,
+  pressureUnit,
 }: {
   event: Event;
   onClose: () => void;
+  pressureUnit: string;
 }) {
   return (
     <div
@@ -87,7 +90,7 @@ function PreviewModal({
                             {hasRec && (
                               <span className="ml-2 text-[#00d4aa]">
                                 Rec: {(["FL", "FR", "RL", "RR"] as const).map((c) =>
-                                  recs[c] != null ? recs[c]!.toFixed(2) : "—"
+                                  recs[c] != null ? displayPressure(recs[c]!, pressureUnit).toFixed(pressureDecimals(pressureUnit)) : "\u2014"
                                 ).join(" / ")}
                               </span>
                             )}
@@ -147,7 +150,7 @@ function Toast({ message, type, onDone }: { message: string; type: "success" | "
 // ═══════════════════════════════════════════════════════════════════
 
 export default function HistoryPage() {
-  const { setEvent } = useEventContext();
+  const { setEvent, settings } = useEventContext();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -439,7 +442,7 @@ export default function HistoryPage() {
 
       {/* Preview modal */}
       {previewEvent && (
-        <PreviewModal event={previewEvent} onClose={() => setPreviewEvent(null)} />
+        <PreviewModal event={previewEvent} onClose={() => setPreviewEvent(null)} pressureUnit={settings.unitsPressure} />
       )}
 
       {/* Toast */}

@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import type { HourlyCardData } from "@/lib/weather/openMeteo";
+import { displayTemp } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -150,7 +151,7 @@ export function HourlyForecastCard({ cards, temperatureUnit }: HourlyForecastCar
                 isCurrent ? "text-white" : "text-gray-200"
               }`}
             >
-              {card.temp}°{temperatureUnit}
+              {Math.round(displayTemp(card.temp, temperatureUnit))}°{temperatureUnit}
             </span>
 
             {/* Rain indicator */}

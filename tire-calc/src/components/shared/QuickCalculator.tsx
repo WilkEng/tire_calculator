@@ -15,6 +15,7 @@ import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { displayPressure, displayTemp, inputPressure, inputTemp, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -175,7 +176,7 @@ export function QuickCalculator({
           </h3>
           {result && !expanded && (
             <span className="text-xs text-[#00d4aa] font-semibold">
-              — {CORNERS.map((c) => result.recommendedColdPressures[c].toFixed(2)).join(" / ")} {pressureUnit}
+              — {CORNERS.map((c) => displayPressure(result.recommendedColdPressures[c], pressureUnit).toFixed(pressureDecimals(pressureUnit))).join(" / ")} {pressureUnit}
             </span>
           )}
         </div>
@@ -227,14 +228,14 @@ export function QuickCalculator({
                     <NumericInput
                       label="Target Hot"
                       unit={pressureUnit}
-                      value={selectedTargets.singleTargetHotPressure}
+                      value={selectedTargets.singleTargetHotPressure != null ? displayPressure(selectedTargets.singleTargetHotPressure, pressureUnit) : undefined}
                       onChange={(v) =>
                         setTargetsOverride((prev) => ({
                           ...(prev ?? baselineTargets),
-                          singleTargetHotPressure: v,
+                          singleTargetHotPressure: v != null ? inputPressure(v, pressureUnit) : v,
                         }))
                       }
-                      placeholder={baselineTargets.singleTargetHotPressure?.toString()}
+                      placeholder={baselineTargets.singleTargetHotPressure != null ? displayPressure(baselineTargets.singleTargetHotPressure, pressureUnit).toFixed(pressureDecimals(pressureUnit)) : undefined}
                     />
                   )}
 
@@ -243,26 +244,26 @@ export function QuickCalculator({
                       <NumericInput
                         label="Front Target"
                         unit={pressureUnit}
-                        value={selectedTargets.frontTargetHotPressure}
+                        value={selectedTargets.frontTargetHotPressure != null ? displayPressure(selectedTargets.frontTargetHotPressure, pressureUnit) : undefined}
                         onChange={(v) =>
                           setTargetsOverride((prev) => ({
                             ...(prev ?? baselineTargets),
-                            frontTargetHotPressure: v,
+                            frontTargetHotPressure: v != null ? inputPressure(v, pressureUnit) : v,
                           }))
                         }
-                        placeholder={baselineTargets.frontTargetHotPressure?.toString()}
+                        placeholder={baselineTargets.frontTargetHotPressure != null ? displayPressure(baselineTargets.frontTargetHotPressure, pressureUnit).toFixed(pressureDecimals(pressureUnit)) : undefined}
                       />
                       <NumericInput
                         label="Rear Target"
                         unit={pressureUnit}
-                        value={selectedTargets.rearTargetHotPressure}
+                        value={selectedTargets.rearTargetHotPressure != null ? displayPressure(selectedTargets.rearTargetHotPressure, pressureUnit) : undefined}
                         onChange={(v) =>
                           setTargetsOverride((prev) => ({
                             ...(prev ?? baselineTargets),
-                            rearTargetHotPressure: v,
+                            rearTargetHotPressure: v != null ? inputPressure(v, pressureUnit) : v,
                           }))
                         }
-                        placeholder={baselineTargets.rearTargetHotPressure?.toString()}
+                        placeholder={baselineTargets.rearTargetHotPressure != null ? displayPressure(baselineTargets.rearTargetHotPressure, pressureUnit).toFixed(pressureDecimals(pressureUnit)) : undefined}
                       />
                     </div>
                   )}
@@ -274,17 +275,17 @@ export function QuickCalculator({
                           key={c}
                           label={`${c} Target`}
                           unit={pressureUnit}
-                          value={selectedTargets.cornerTargets?.[c]}
+                          value={selectedTargets.cornerTargets?.[c] != null ? displayPressure(selectedTargets.cornerTargets[c]!, pressureUnit) : undefined}
                           onChange={(v) =>
                             setTargetsOverride((prev) => {
                               const current = (prev ?? baselineTargets).cornerTargets ?? { FL: 0, FR: 0, RL: 0, RR: 0 };
                               return {
                                 ...(prev ?? baselineTargets),
-                                cornerTargets: { ...current, [c]: v ?? 0 },
+                                cornerTargets: { ...current, [c]: v != null ? inputPressure(v, pressureUnit) : 0 },
                               };
                             })
                           }
-                          placeholder={baselineTargets.cornerTargets?.[c]?.toString()}
+                          placeholder={baselineTargets.cornerTargets?.[c] != null ? displayPressure(baselineTargets.cornerTargets[c]!, pressureUnit).toFixed(pressureDecimals(pressureUnit)) : undefined}
                         />
                       ))}
                     </div>
@@ -321,16 +322,16 @@ export function QuickCalculator({
                 <NumericInput
                   label="Ambient Temp *"
                   unit={`°${temperatureUnit}`}
-                  value={calcAmbient}
-                  onChange={setCalcAmbient}
-                  placeholder={currentConditions?.ambient?.toFixed(1) ?? "—"}
+                  value={calcAmbient != null ? displayTemp(calcAmbient, temperatureUnit) : undefined}
+                  onChange={(v) => setCalcAmbient(v != null ? inputTemp(v, temperatureUnit) : undefined)}
+                  placeholder={currentConditions?.ambient != null ? displayTemp(currentConditions.ambient, temperatureUnit).toFixed(1) : "—"}
                 />
                 <NumericInput
                   label="Asphalt Temp *"
                   unit={`°${temperatureUnit}`}
-                  value={calcAsphalt}
-                  onChange={setCalcAsphalt}
-                  placeholder={currentConditions?.asphalt?.toFixed(1) ?? "—"}
+                  value={calcAsphalt != null ? displayTemp(calcAsphalt, temperatureUnit) : undefined}
+                  onChange={(v) => setCalcAsphalt(v != null ? inputTemp(v, temperatureUnit) : undefined)}
+                  placeholder={currentConditions?.asphalt != null ? displayTemp(currentConditions.asphalt, temperatureUnit).toFixed(1) : "—"}
                 />
               </div>
 
@@ -345,9 +346,9 @@ export function QuickCalculator({
                       key={c}
                       label={c}
                       unit={`°${temperatureUnit}`}
-                      value={calcTireTemps[c]}
-                      onChange={(v) => setCalcTireTemps((prev) => ({ ...prev, [c]: v }))}
-                      placeholder={refStint.baseline?.startTireTemps?.[c]?.toString()}
+                      value={calcTireTemps[c] != null ? displayTemp(calcTireTemps[c]!, temperatureUnit) : undefined}
+                      onChange={(v) => setCalcTireTemps((prev) => ({ ...prev, [c]: v != null ? inputTemp(v, temperatureUnit) : v }))}
+                      placeholder={refStint.baseline?.startTireTemps?.[c] != null ? displayTemp(refStint.baseline.startTireTemps[c]!, temperatureUnit).toFixed(1) : undefined}
                     />
                   ))}
                 </div>
@@ -391,6 +392,7 @@ export function QuickCalculator({
                       const cold = result.recommendedColdPressures[c];
                       const delta = result.deltasToTarget[c];
                       const isBelowMin = cold < minColdPressureBar;
+                      const pd = pressureDecimals(pressureUnit);
                       return (
                         <div key={c} className="text-center">
                           <div className="text-[11px] text-gray-400 mb-1 font-semibold">{c}</div>
@@ -399,12 +401,12 @@ export function QuickCalculator({
                               isBelowMin ? "text-red-400" : "text-[#00d4aa]"
                             }`}
                           >
-                            {cold.toFixed(2)}
+                            {displayPressure(cold, pressureUnit).toFixed(pd)}
                           </div>
                           <div className="text-[11px] text-gray-400 mt-0.5">{pressureUnit}</div>
                           {isBelowMin && (
                             <div className="text-[10px] text-red-400 font-medium mt-0.5">
-                              ⚠ Below {minColdPressureBar.toFixed(1)}
+                              ⚠ Below {displayPressure(minColdPressureBar, pressureUnit).toFixed(pd)}
                             </div>
                           )}
                           <div
@@ -417,7 +419,7 @@ export function QuickCalculator({
                             }`}
                           >
                             {delta >= 0 ? "+" : ""}
-                            {delta.toFixed(2)}
+                            {displayPressure(delta, pressureUnit).toFixed(pd)}
                           </div>
                         </div>
                       );
@@ -430,7 +432,7 @@ export function QuickCalculator({
                   ) && (
                     <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 mt-3 text-xs text-red-300 text-center font-medium">
                       ⚠ One or more cold pressures are below{" "}
-                      {minColdPressureBar.toFixed(1)} bar
+                      {displayPressure(minColdPressureBar, pressureUnit).toFixed(pressureDecimals(pressureUnit))} {pressureUnit}
                     </div>
                   )}
 

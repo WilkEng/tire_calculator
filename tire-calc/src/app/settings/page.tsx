@@ -10,6 +10,7 @@ import type { PressureUnit, TemperatureUnit, TargetMode } from "@/lib/domain/mod
 import { COMPOUND_PRESETS, BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import type { CustomCompound } from "@/lib/domain/models";
 import { generateId } from "@/lib/utils/helpers";
+import { displayTemp, inputTemp, displayPressure, inputPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useEventContext();
@@ -88,9 +89,9 @@ export default function SettingsPage() {
           <NumericInput
             label="Default Start Tire Temp"
             unit={`°${settings.unitsTemperature}`}
-            value={settings.defaultStartTireTemp}
+            value={displayTemp(settings.defaultStartTireTemp, settings.unitsTemperature)}
             onChange={(v) =>
-              updateSettings({ defaultStartTireTemp: v ?? 25 })
+              updateSettings({ defaultStartTireTemp: v != null ? inputTemp(v, settings.unitsTemperature) : 25 })
             }
           />
           <Select
@@ -223,14 +224,14 @@ export default function SettingsPage() {
                       }}
                     />
                     <NumericInput
-                      label="Min Cold Pressure (bar)"
-                      value={minP}
+                      label={`Min Cold Pressure (${settings.unitsPressure})`}
+                      value={displayPressure(minP, settings.unitsPressure)}
                       onChange={(v) => {
                         const prev = settings.compoundCoefficients ?? { ...COMPOUND_PRESETS };
                         updateSettings({
                           compoundCoefficients: {
                             ...prev,
-                            [cmp]: { ...prev[cmp], minColdPressureBar: v ?? defaults.minColdPressureBar },
+                            [cmp]: { ...prev[cmp], minColdPressureBar: v != null ? inputPressure(v, settings.unitsPressure) : defaults.minColdPressureBar },
                           },
                         });
                       }}
@@ -296,9 +297,9 @@ export default function SettingsPage() {
                       onChange={(v) => updateCustomCompound(cc.id, { kTrack: v ?? 1.75 })}
                     />
                     <NumericInput
-                      label="Min Cold Pressure (bar)"
-                      value={cc.minColdPressureBar}
-                      onChange={(v) => updateCustomCompound(cc.id, { minColdPressureBar: v ?? 1.3 })}
+                      label={`Min Cold Pressure (${settings.unitsPressure})`}
+                      value={displayPressure(cc.minColdPressureBar, settings.unitsPressure)}
+                      onChange={(v) => updateCustomCompound(cc.id, { minColdPressureBar: v != null ? inputPressure(v, settings.unitsPressure) : 1.3 })}
                     />
                   </div>
                 </div>

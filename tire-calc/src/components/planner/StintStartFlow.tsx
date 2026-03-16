@@ -14,6 +14,7 @@ import type {
 } from "@/lib/domain/models";
 import { BUILT_IN_COMPOUNDS } from "@/lib/domain/models";
 import { resolveMinColdPressure } from "@/lib/engine";
+import { displayPressure, displayTemp, inputPressure, inputTemp, pressureDecimals } from "@/lib/utils/helpers";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -325,6 +326,7 @@ export function StintStartFlow({
                 const v = recommendedColdPressures[c];
                 return v != null && v < minCold;
               });
+              const pd = pressureDecimals(pressureUnit);
               return (
                 <div className="bg-teal-900/20 border border-teal-700/50 rounded p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -343,11 +345,11 @@ export function StintStartFlow({
                         <div key={c} className="text-center">
                           <div className="text-xs text-gray-400">{c}</div>
                           <div className={`text-sm font-bold tabular-nums ${isBelowMin ? "text-red-400" : "text-teal-400"}`}>
-                            {v?.toFixed(2) ?? "—"}
+                            {v != null ? displayPressure(v, pressureUnit).toFixed(pd) : "—"}
                           </div>
                           {isBelowMin && (
                             <div className="text-[10px] text-red-400 font-medium mt-0.5">
-                              ⚠ Below {minCold.toFixed(1)}
+                              ⚠ Below {displayPressure(minCold, pressureUnit).toFixed(pd)}
                             </div>
                           )}
                         </div>
@@ -356,7 +358,7 @@ export function StintStartFlow({
                   </div>
                   {anyBelowMin && (
                     <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 mt-2 text-xs text-red-300 text-center font-medium">
-                      ⚠ One or more cold pressures are below {minCold.toFixed(1)} bar — verify settings
+                      ⚠ One or more cold pressures are below {displayPressure(minCold, pressureUnit).toFixed(pd)} {pressureUnit} — verify settings
                     </div>
                   )}
                 </div>
@@ -393,8 +395,8 @@ export function StintStartFlow({
                     key={c}
                     label={c}
                     unit={`°${temperatureUnit}`}
-                    value={baseline.startTireTemps?.[c]}
-                    onChange={(v) => handleStartTireTemp(c, v)}
+                    value={baseline.startTireTemps?.[c] != null ? displayTemp(baseline.startTireTemps[c]!, temperatureUnit) : undefined}
+                    onChange={(v) => handleStartTireTemp(c, v != null ? inputTemp(v, temperatureUnit) : undefined)}
                   />
                 ))}
               </div>
@@ -411,8 +413,8 @@ export function StintStartFlow({
                     key={c}
                     label={c}
                     unit={pressureUnit}
-                    value={baseline.coldPressures?.[c]}
-                    onChange={(v) => handleColdPressure(c, v)}
+                    value={baseline.coldPressures?.[c] != null ? displayPressure(baseline.coldPressures[c]!, pressureUnit) : undefined}
+                    onChange={(v) => handleColdPressure(c, v != null ? inputPressure(v, pressureUnit) : undefined)}
                   />
                 ))}
               </div>
@@ -435,8 +437,8 @@ export function StintStartFlow({
                   <NumericInput
                     label="Target Hot"
                     unit={pressureUnit}
-                    value={baseline.targets.singleTargetHotPressure}
-                    onChange={handleSingleTarget}
+                    value={baseline.targets.singleTargetHotPressure != null ? displayPressure(baseline.targets.singleTargetHotPressure, pressureUnit) : undefined}
+                    onChange={(v) => handleSingleTarget(v != null ? inputPressure(v, pressureUnit) : undefined)}
                   />
                 )}
 
@@ -445,14 +447,14 @@ export function StintStartFlow({
                     <NumericInput
                       label="Front Target"
                       unit={pressureUnit}
-                      value={baseline.targets.frontTargetHotPressure}
-                      onChange={handleFrontTarget}
+                      value={baseline.targets.frontTargetHotPressure != null ? displayPressure(baseline.targets.frontTargetHotPressure, pressureUnit) : undefined}
+                      onChange={(v) => handleFrontTarget(v != null ? inputPressure(v, pressureUnit) : undefined)}
                     />
                     <NumericInput
                       label="Rear Target"
                       unit={pressureUnit}
-                      value={baseline.targets.rearTargetHotPressure}
-                      onChange={handleRearTarget}
+                      value={baseline.targets.rearTargetHotPressure != null ? displayPressure(baseline.targets.rearTargetHotPressure, pressureUnit) : undefined}
+                      onChange={(v) => handleRearTarget(v != null ? inputPressure(v, pressureUnit) : undefined)}
                     />
                   </div>
                 )}
@@ -464,8 +466,8 @@ export function StintStartFlow({
                         key={c}
                         label={`${c} Target`}
                         unit={pressureUnit}
-                        value={baseline.targets.cornerTargets?.[c]}
-                        onChange={(v) => handleCornerTarget(c, v)}
+                        value={baseline.targets.cornerTargets?.[c] != null ? displayPressure(baseline.targets.cornerTargets[c]!, pressureUnit) : undefined}
+                        onChange={(v) => handleCornerTarget(c, v != null ? inputPressure(v, pressureUnit) : undefined)}
                       />
                     ))}
                   </div>
@@ -479,7 +481,7 @@ export function StintStartFlow({
                 Conditions
                 {weatherConditions && (
                   <span className="text-gray-500 normal-case font-normal ml-2">
-                    (API: {weatherConditions.ambient}°/{weatherConditions.asphalt}° — your input overrides)
+                    (API: {displayTemp(weatherConditions.ambient, temperatureUnit).toFixed(1)}°/{displayTemp(weatherConditions.asphalt, temperatureUnit).toFixed(1)}° — your input overrides)
                   </span>
                 )}
               </h4>
@@ -551,16 +553,16 @@ export function StintStartFlow({
                 <NumericInput
                   label="Ambient Temp"
                   unit={`°${temperatureUnit}`}
-                  value={baseline.ambientMeasured}
-                  onChange={handleAmbientChange}
-                  placeholder={weatherConditions?.ambient.toString()}
+                  value={baseline.ambientMeasured != null ? displayTemp(baseline.ambientMeasured, temperatureUnit) : undefined}
+                  onChange={(v) => handleAmbientChange(v != null ? inputTemp(v, temperatureUnit) : undefined)}
+                  placeholder={weatherConditions ? displayTemp(weatherConditions.ambient, temperatureUnit).toFixed(1) : undefined}
                 />
                 <NumericInput
                   label="Asphalt Temp"
                   unit={`°${temperatureUnit}`}
-                  value={baseline.asphaltMeasured}
-                  onChange={handleAsphaltChange}
-                  placeholder={weatherConditions?.asphalt.toString()}
+                  value={baseline.asphaltMeasured != null ? displayTemp(baseline.asphaltMeasured, temperatureUnit) : undefined}
+                  onChange={(v) => handleAsphaltChange(v != null ? inputTemp(v, temperatureUnit) : undefined)}
+                  placeholder={weatherConditions ? displayTemp(weatherConditions.asphalt, temperatureUnit).toFixed(1) : undefined}
                 />
               </div>
               {(() => {
@@ -596,6 +598,7 @@ function BaselineReadonlyDisplay({
   pressureUnit: string;
   temperatureUnit: string;
 }) {
+  const pd = pressureDecimals(pressureUnit);
   return (
     <div className="space-y-3">
       {/* Cold Pressures */}
@@ -608,7 +611,7 @@ function BaselineReadonlyDisplay({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">{c}</div>
               <div className="text-sm text-gray-300 tabular-nums">
-                {baseline.coldPressures?.[c]?.toFixed(2) ?? "—"} {pressureUnit}
+                {baseline.coldPressures?.[c] != null ? displayPressure(baseline.coldPressures[c]!, pressureUnit).toFixed(pd) : "—"} {pressureUnit}
               </div>
             </div>
           ))}
@@ -625,7 +628,7 @@ function BaselineReadonlyDisplay({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">{c}</div>
               <div className="text-sm text-gray-300 tabular-nums">
-                {baseline.startTireTemps?.[c]?.toFixed(1) ?? "—"} °{temperatureUnit}
+                {baseline.startTireTemps?.[c] != null ? displayTemp(baseline.startTireTemps[c]!, temperatureUnit).toFixed(1) : "—"} °{temperatureUnit}
               </div>
             </div>
           ))}
@@ -639,13 +642,13 @@ function BaselineReadonlyDisplay({
         </h4>
         {baseline.targetMode === "single" && (
           <p className="text-sm text-gray-300">
-            {baseline.targets.singleTargetHotPressure?.toFixed(2) ?? "—"} {pressureUnit}
+            {baseline.targets.singleTargetHotPressure != null ? displayPressure(baseline.targets.singleTargetHotPressure, pressureUnit).toFixed(pd) : "—"} {pressureUnit}
           </p>
         )}
         {baseline.targetMode === "front-rear" && (
           <p className="text-sm text-gray-300">
-            Front: {baseline.targets.frontTargetHotPressure?.toFixed(2) ?? "—"} / Rear:{" "}
-            {baseline.targets.rearTargetHotPressure?.toFixed(2) ?? "—"} {pressureUnit}
+            Front: {baseline.targets.frontTargetHotPressure != null ? displayPressure(baseline.targets.frontTargetHotPressure, pressureUnit).toFixed(pd) : "—"} / Rear:{" "}
+            {baseline.targets.rearTargetHotPressure != null ? displayPressure(baseline.targets.rearTargetHotPressure, pressureUnit).toFixed(pd) : "—"} {pressureUnit}
           </p>
         )}
         {baseline.targetMode === "four-corner" && (
@@ -654,7 +657,7 @@ function BaselineReadonlyDisplay({
               <div key={c} className="text-center">
                 <div className="text-xs text-gray-500">{c}</div>
                 <div className="text-sm text-gray-300 tabular-nums">
-                  {baseline.targets.cornerTargets?.[c]?.toFixed(2) ?? "—"}
+                  {baseline.targets.cornerTargets?.[c] != null ? displayPressure(baseline.targets.cornerTargets[c]!, pressureUnit).toFixed(pd) : "—"}
                 </div>
               </div>
             ))}
@@ -667,13 +670,13 @@ function BaselineReadonlyDisplay({
         <div>
           <span className="text-xs text-gray-500">Ambient: </span>
           <span className="text-sm text-gray-300">
-            {baseline.ambientMeasured?.toFixed(1) ?? "—"} °{temperatureUnit}
+            {baseline.ambientMeasured != null ? displayTemp(baseline.ambientMeasured, temperatureUnit).toFixed(1) : "—"} °{temperatureUnit}
           </span>
         </div>
         <div>
           <span className="text-xs text-gray-500">Asphalt: </span>
           <span className="text-sm text-gray-300">
-            {baseline.asphaltMeasured?.toFixed(1) ?? "—"} °{temperatureUnit}
+            {baseline.asphaltMeasured != null ? displayTemp(baseline.asphaltMeasured, temperatureUnit).toFixed(1) : "—"} °{temperatureUnit}
           </span>
         </div>
       </div>

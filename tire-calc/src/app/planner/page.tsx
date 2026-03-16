@@ -555,6 +555,7 @@ export default function PlannerPage() {
         onClose={() => setBaselinePickerStintId(null)}
         onSelect={handlePickBaseline}
         pressureUnit={settings.unitsPressure}
+        temperatureUnit={settings.unitsTemperature}
       />
 
       <AdBanner />

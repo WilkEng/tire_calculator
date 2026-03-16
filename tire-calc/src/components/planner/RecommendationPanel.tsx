@@ -2,6 +2,7 @@
 
 import type { RecommendationOutput } from "@/lib/domain/models";
 import { Card } from "@/components/ui/Card";
+import { displayPressure, pressureDecimals } from "@/lib/utils/helpers";
 
 interface RecommendationPanelProps {
   recommendation: RecommendationOutput | null;
@@ -24,6 +25,7 @@ export function RecommendationPanel({
 
   const r = recommendation;
   const corners = ["FL", "FR", "RL", "RR"] as const;
+  const pd = pressureDecimals(pressureUnit);
 
   return (
     <Card title="Next Cold Recommendation" className="border-teal-800 bg-gray-900">
@@ -33,7 +35,7 @@ export function RecommendationPanel({
           <div key={c} className="text-center">
             <div className="text-xs text-gray-400 uppercase mb-1">{c}</div>
             <div className="text-2xl font-bold text-teal-400 tabular-nums">
-              {r.recommendedColdPressures[c].toFixed(2)}
+              {displayPressure(r.recommendedColdPressures[c], pressureUnit).toFixed(pd)}
             </div>
             <div className="text-xs text-gray-500">{pressureUnit}</div>
           </div>
@@ -54,11 +56,11 @@ export function RecommendationPanel({
             <div key={c} className="text-center">
               <div className="text-xs text-gray-500">Predicted Hot</div>
               <div className="text-sm tabular-nums text-gray-300">
-                {r.predictedHotPressures[c].toFixed(2)}
+                {displayPressure(r.predictedHotPressures[c], pressureUnit).toFixed(pd)}
               </div>
               <div className={`text-xs tabular-nums ${color}`}>
                 Δ {delta >= 0 ? "+" : ""}
-                {delta.toFixed(2)}
+                {displayPressure(delta, pressureUnit).toFixed(pd)}
               </div>
             </div>
           );
